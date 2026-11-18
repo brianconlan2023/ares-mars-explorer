@@ -1,0 +1,1951 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>ARES · Mars Explorer</title>
+<meta name="description" content="A live 3D Mars: the real planet as it is right now, its moons, the Sun and Earth. Drop into Jezero Crater, drive a rover yourself and roll up to New Jezero, a vision of humanity's future home.">
+<meta name="theme-color" content="#060403">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@300;400;500;600&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --void: #060403;
+    --ink: #f1ebe6;
+    --dim: #a3958c;
+    --faint: #6d625b;
+    --accent: #ff9a6b;
+    --accent-ink: #1d0b03;
+    --warm: #f3d9a4;
+    --green: #7ef0a8;
+    --violet: #c7a6ff;
+    --cyan: #9ddcff;
+    --glass: rgb(18 12 10 / .62);
+    --glass-strong: rgb(14 10 8 / .9);
+    --line: rgb(255 240 230 / .1);
+    --line-strong: rgb(255 240 230 / .2);
+    --mono: "JetBrains Mono", ui-monospace, Menlo, monospace;
+    --sans: "Space Grotesk", system-ui, sans-serif;
+    --ease: cubic-bezier(.16, 1, .3, 1);
+    --sat: env(safe-area-inset-top, 0px);
+    --sab: env(safe-area-inset-bottom, 0px);
+    --sal: env(safe-area-inset-left, 0px);
+    --sar: env(safe-area-inset-right, 0px);
+  }
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+  html, body { height: 100%; overflow: hidden; background: var(--void); color: var(--ink); font-family: var(--sans); -webkit-font-smoothing: antialiased; }
+  body { user-select: none; -webkit-tap-highlight-color: transparent; }
+  button { font: inherit; color: inherit; background: none; border: 0; cursor: pointer; }
+  a { color: var(--accent); }
+
+  #stage { position: fixed; inset: 0; touch-action: none; cursor: grab; }
+  #stage:active { cursor: grabbing; }
+  .fader { position: fixed; inset: 0; z-index: 60; background: #000; opacity: 0; pointer-events: none; transition: opacity .7s ease; }
+  .fader.on { opacity: 1; }
+
+  .boot { position: fixed; inset: 0; z-index: 100; display: grid; place-items: center; background: radial-gradient(ellipse at 50% 60%, #1c0f09, var(--void) 70%); transition: opacity 1.2s var(--ease), visibility 1.2s; }
+  .boot.gone { opacity: 0; visibility: hidden; }
+  .boot-inner { text-align: center; padding: 24px; }
+  .boot-planet { width: 84px; height: 84px; margin: 0 auto 28px; border-radius: 50%; background: radial-gradient(circle at 34% 36%, #ffd2b0, #d8714a 30%, #9a3f22 55%, #4a1a0c 76%, #0b0503); box-shadow: 0 0 60px rgb(255 140 90 / .22), inset -10px -8px 22px rgb(0 0 0 / .55); animation: breathe 3s ease-in-out infinite; }
+  @keyframes breathe { 50% { transform: scale(1.04); box-shadow: 0 0 90px rgb(255 140 90 / .38), inset -10px -8px 22px rgb(0 0 0 / .55); } }
+  .boot h1 { font-weight: 300; font-size: clamp(30px, 6vw, 56px); letter-spacing: .5em; margin-right: -.5em; }
+  .boot p { margin-top: 10px; font-size: 11px; letter-spacing: .28em; color: var(--accent); text-transform: uppercase; }
+  .boot-bar { width: min(280px, 60vw); height: 2px; margin: 30px auto 12px; background: var(--line); border-radius: 2px; overflow: hidden; }
+  .boot-fill { height: 100%; background: var(--accent); transform: scaleX(0); transform-origin: left; transition: transform .4s var(--ease); }
+  .boot-status { font-family: var(--mono); font-size: 11px; color: var(--dim); letter-spacing: .08em; }
+
+  .hud { position: fixed; inset: 0; z-index: 10; pointer-events: none; padding: calc(18px + var(--sat)) calc(18px + var(--sar)) calc(18px + var(--sab)) calc(18px + var(--sal)); }
+  .hud > * { pointer-events: auto; }
+  .glass { background: var(--glass); backdrop-filter: blur(18px) saturate(1.2); -webkit-backdrop-filter: blur(18px) saturate(1.2); border: 1px solid var(--line); border-radius: 16px; }
+
+  .brand { position: absolute; top: calc(18px + var(--sat)); left: calc(18px + var(--sal)); display: flex; flex-direction: column; gap: 6px; pointer-events: none; }
+  .brand-mark { font-size: 18px; font-weight: 400; letter-spacing: .42em; }
+  .brand-level { font-family: var(--mono); font-size: 10px; letter-spacing: .14em; color: var(--accent); text-transform: uppercase; }
+  .brand-alt { font-family: var(--mono); font-size: 12px; color: var(--dim); }
+  .brand-alt b { color: var(--ink); font-weight: 500; }
+  .rover-mode .brand { text-shadow: 0 1px 10px rgb(0 0 0 / .9), 0 0 3px rgb(0 0 0 / .9); }
+  .rover-mode .brand-level { color: #ffc2a2; }
+
+  .tele { position: absolute; top: calc(18px + var(--sat)); right: calc(18px + var(--sar)); padding: 12px 14px; display: grid; gap: 9px; min-width: 236px; }
+  .tele-row { display: flex; justify-content: space-between; gap: 18px; align-items: baseline; }
+  .tele-k { font-family: var(--mono); font-size: 9.5px; letter-spacing: .1em; color: var(--dim); text-transform: uppercase; }
+  .tele-v { font-family: var(--mono); font-size: 13px; font-weight: 500; text-align: right; white-space: nowrap; }
+  .tele-v small { color: var(--accent); font-size: 10px; margin-left: 3px; }
+  .tele-bar { height: 4px; width: 90px; background: var(--line); border-radius: 2px; overflow: hidden; display: inline-block; vertical-align: middle; margin-right: 8px; }
+  .tele-bar i { display: block; height: 100%; background: var(--green); }
+  .tele-date { border-top: 1px solid var(--line); padding-top: 9px; font-family: var(--mono); font-size: 11px; color: var(--dim); text-align: right; }
+  .tele-toggle { display: none; }
+  .rover-only, .rover-mode .orbit-only { display: none !important; }
+  .rover-mode .rover-only { display: flex !important; }
+  .rover-mode.no-touch .stick { display: none !important; }
+  .rover-mode .rover-only.block { display: block !important; }
+
+  .ladder { position: absolute; left: calc(18px + var(--sal)); top: calc(118px + var(--sat)); display: flex; flex-direction: column; align-items: flex-start; gap: 6px; }
+  .rung { display: flex; align-items: center; gap: 10px; padding: 7px 14px 7px 9px; border-radius: 20px; font-size: 12px; font-weight: 500; letter-spacing: .04em; color: #fff; background: rgb(20 12 8 / .55); border: 1px solid rgb(255 255 255 / .16); backdrop-filter: blur(10px); -webkit-backdrop-filter: blur(10px); text-shadow: 0 1px 4px rgb(0 0 0 / .8); transition: color .3s, background-color .3s, border-color .3s; }
+  .rung::before { content: ""; width: 8px; height: 8px; border-radius: 50%; border: 1.5px solid #fff; transition: background-color .3s, transform .3s var(--ease); }
+  .rung:hover { background: rgb(255 255 255 / .16); }
+  .rung.on { color: var(--accent-ink); background: #fff; border-color: #fff; text-shadow: none; }
+  .rung.on::before { background: var(--accent); border-color: var(--accent-ink); transform: scale(1.2); }
+
+  .context { position: absolute; left: calc(18px + var(--sal)); bottom: calc(112px + var(--sab)); width: min(350px, calc(100vw - 36px)); padding: 16px 18px; transition: opacity .5s var(--ease), transform .5s var(--ease); }
+  .context.swap { opacity: 0; transform: translateY(8px); }
+  .context.quiet { opacity: 0; pointer-events: none; transform: translateY(8px); }
+  .context-tag { font-family: var(--mono); font-size: 9.5px; letter-spacing: .14em; text-transform: uppercase; color: var(--accent); }
+  .context h2 { font-weight: 500; font-size: 19px; margin: 6px 0 8px; }
+  .context p { font-size: 13px; line-height: 1.55; color: #d6ccc5; }
+  .context-facts { display: grid; grid-template-columns: 1fr 1fr; gap: 10px 14px; margin-top: 12px; }
+  .fact-k { font-family: var(--mono); font-size: 9px; letter-spacing: .1em; text-transform: uppercase; color: var(--dim); }
+  .fact-v { font-family: var(--mono); font-size: 13px; margin-top: 2px; }
+  .context-more { margin-top: 12px; font-size: 12px; color: var(--accent); }
+  .context-actions { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 12px; }
+
+  .probe { position: absolute; left: 50%; top: 50%; transform: translate(-50%, -13px); pointer-events: none; opacity: 0; transition: opacity .4s; }
+  .probe.on { opacity: 1; }
+  .probe-ring { width: 26px; height: 26px; margin: 0 auto; border: 1px solid rgb(255 154 107 / .65); border-radius: 50%; position: relative; }
+  .probe-ring::after { content: ""; position: absolute; inset: 11px; background: var(--accent); border-radius: 50%; }
+  .probe-text { margin-top: 10px; padding: 6px 10px; border-radius: 10px; background: rgb(10 6 4 / .62); backdrop-filter: blur(6px); -webkit-backdrop-filter: blur(6px); font-family: var(--mono); font-size: 10.5px; line-height: 1.5; color: var(--ink); text-align: center; white-space: nowrap; }
+  .probe-text span { color: var(--dim); }
+
+  .dock { position: absolute; left: 50%; bottom: calc(18px + var(--sab)); transform: translateX(-50%); display: flex; flex-direction: column; gap: 8px; align-items: center; width: max-content; max-width: calc(100vw - 24px); }
+  .bar { display: flex; gap: 4px; padding: 5px; border-radius: 999px; overflow-x: auto; scrollbar-width: none; max-width: 100%; }
+  .bar::-webkit-scrollbar { display: none; }
+  .chip { flex: none; padding: 8px 14px; border-radius: 999px; font-size: 12px; font-weight: 500; color: var(--dim); transition: color .25s, background-color .25s; white-space: nowrap; display: inline-flex; align-items: center; gap: 7px; }
+  .chip:hover { color: var(--ink); background: rgb(255 255 255 / .06); }
+  .chip.on { color: var(--accent-ink); background: var(--accent); }
+  .chip.solid { color: var(--accent-ink); background: var(--accent); }
+  .chip svg { width: 15px; height: 15px; fill: none; stroke: currentColor; stroke-width: 1.7; stroke-linecap: round; stroke-linejoin: round; }
+
+  .labels { position: fixed; inset: 0; z-index: 5; pointer-events: none; overflow: hidden; }
+  .tag { position: absolute; left: 0; top: 0; pointer-events: auto; display: flex; align-items: center; gap: 7px; padding: 3px 9px 3px 4px; border-radius: 999px; font-size: 11px; font-weight: 500; color: var(--ink); background: rgb(14 8 6 / .58); border: 1px solid var(--line); white-space: nowrap; transition: opacity .3s, background-color .2s; will-change: transform; }
+  .tag::before { content: ""; width: 8px; height: 8px; border-radius: 50%; background: var(--warm); box-shadow: 0 0 10px var(--warm); }
+  .tag.nature::before { background: var(--accent); box-shadow: 0 0 10px var(--accent); }
+  .tag.vision::before { background: var(--green); box-shadow: 0 0 10px var(--green); }
+  .tag.building::before { background: var(--cyan); box-shadow: 0 0 10px var(--cyan); }
+  .tag.body { background: none; border-color: transparent; font-family: var(--mono); font-size: 10.5px; letter-spacing: .1em; text-transform: uppercase; color: var(--dim); }
+  .tag.body::before { background: none; box-shadow: none; border: 1px solid var(--dim); width: 14px; height: 14px; }
+  .tag:hover { background: rgb(40 26 20 / .88); }
+  .tag.hide { opacity: 0; pointer-events: none; }
+
+  .sheet { position: fixed; z-index: 30; right: calc(18px + var(--sar)); top: calc(18px + var(--sat)); bottom: calc(18px + var(--sab)); width: min(440px, calc(100vw - 36px)); display: flex; flex-direction: column; background: var(--glass-strong); transform: translateX(calc(100% + 40px)); transition: transform .6s var(--ease); }
+  .sheet.open { transform: none; }
+  .sheet-head { display: flex; align-items: center; justify-content: space-between; padding: 16px 18px 10px; }
+  .sheet-title { font-size: 15px; font-weight: 500; letter-spacing: .04em; }
+  .x { width: 36px; height: 36px; border-radius: 50%; display: grid; place-items: center; color: var(--dim); }
+  .x:hover { color: var(--ink); background: rgb(255 255 255 / .08); }
+  .tabs { display: flex; gap: 4px; padding: 0 14px 10px; overflow-x: auto; scrollbar-width: none; border-bottom: 1px solid var(--line); }
+  .tabs::-webkit-scrollbar { display: none; }
+  .tabs .chip { padding: 7px 12px; }
+  .sheet-body { flex: 1; overflow-y: auto; padding: 18px 20px 28px; user-select: text; overscroll-behavior: contain; }
+  .sheet-body h3 { font-size: 17px; font-weight: 500; margin: 22px 0 8px; }
+  .sheet-body h3:first-child { margin-top: 0; }
+  .sheet-body p { font-size: 13.5px; line-height: 1.62; color: #d3c9c2; margin-bottom: 10px; }
+  .grid-facts { display: grid; grid-template-columns: 1fr 1fr; gap: 1px; background: var(--line); border: 1px solid var(--line); border-radius: 12px; overflow: hidden; margin: 6px 0 14px; }
+  .grid-facts > div { background: rgb(22 15 12); padding: 11px 12px; }
+  .timeline { list-style: none; border-left: 1px solid var(--line-strong); margin: 8px 0 14px 6px; }
+  .timeline li { position: relative; padding: 0 0 16px 18px; font-size: 13px; line-height: 1.55; color: #d3c9c2; }
+  .timeline li::before { content: ""; position: absolute; left: -4.5px; top: 6px; width: 8px; height: 8px; border-radius: 50%; background: var(--accent); }
+  .timeline time { display: block; font-family: var(--mono); font-size: 10.5px; color: var(--accent); letter-spacing: .06em; margin-bottom: 2px; }
+  .layers { display: grid; gap: 8px; }
+  .row-btn { display: flex; align-items: center; justify-content: space-between; gap: 12px; width: 100%; padding: 13px 14px; border-radius: 12px; border: 1px solid var(--line); text-align: left; transition: border-color .2s, background-color .2s; }
+  .row-btn:hover { border-color: var(--line-strong); background: rgb(255 255 255 / .03); }
+  .row-btn strong { display: block; font-weight: 500; font-size: 14px; }
+  .row-btn span { display: block; font-size: 12px; color: var(--dim); margin-top: 3px; line-height: 1.45; }
+  .switch { flex: none; width: 38px; height: 22px; border-radius: 11px; background: rgb(255 255 255 / .14); position: relative; transition: background-color .3s; }
+  .switch::after { content: ""; position: absolute; top: 3px; left: 3px; width: 16px; height: 16px; border-radius: 50%; background: #fff; transition: transform .3s var(--ease); }
+  .on > .switch { background: var(--accent); }
+  .on > .switch::after { transform: translateX(16px); }
+  .play { flex: none; padding: 7px 13px; border-radius: 999px; font-size: 12px; font-weight: 600; background: rgb(255 255 255 / .1); }
+  .on > .play { background: var(--accent); color: var(--accent-ink); }
+  .note { font-size: 12px; color: var(--dim); line-height: 1.55; border-left: 2px solid var(--accent); padding: 4px 0 4px 12px; margin: 12px 0; }
+  .site-meta { font-family: var(--mono); font-size: 11px; color: var(--accent); letter-spacing: .06em; margin-bottom: 10px; }
+  .cta { display: inline-flex; margin: 8px 8px 0 0; padding: 10px 16px; border-radius: 999px; background: var(--accent); color: var(--accent-ink); font-weight: 600; font-size: 13px; text-decoration: none; }
+  .cta.ghost { background: rgb(255 255 255 / .1); color: var(--ink); }
+
+  .toast { position: fixed; z-index: 40; top: calc(80px + var(--sat)); left: 50%; transform: translate(-50%, -12px); padding: 8px 16px; border-radius: 999px; background: rgb(255 154 107 / .96); color: var(--accent-ink); font-size: 12px; font-weight: 600; opacity: 0; transition: opacity .4s var(--ease), transform .4s var(--ease); pointer-events: none; text-align: center; max-width: 90vw; }
+  .toast.show { opacity: 1; transform: translate(-50%, 0); }
+  .hint { position: absolute; left: 50%; top: 66%; transform: translateX(-50%); font-size: 12px; color: var(--dim); letter-spacing: .04em; pointer-events: none; transition: opacity 1s; text-align: center; text-shadow: 0 1px 6px #000; }
+  .hint.gone { opacity: 0; }
+
+  /* rover controls */
+  .stick { position: absolute; left: calc(26px + var(--sal)); bottom: calc(118px + var(--sab)); width: 132px; height: 132px; border-radius: 50%; border: 1px solid var(--line-strong); background: rgb(20 12 8 / .45); backdrop-filter: blur(8px); -webkit-backdrop-filter: blur(8px); touch-action: none; align-items: center; justify-content: center; }
+  .stick-knob { width: 54px; height: 54px; border-radius: 50%; background: rgb(255 154 107 / .85); box-shadow: 0 0 20px rgb(255 154 107 / .5); transform: translate(0, 0); transition: transform .12s ease-out; pointer-events: none; }
+  .stick.active .stick-knob { transition: none; }
+  .stick-label { position: absolute; bottom: -22px; left: 0; right: 0; text-align: center; font-family: var(--mono); font-size: 9.5px; letter-spacing: .12em; color: var(--dim); text-transform: uppercase; }
+  .drive-tools { position: absolute; right: calc(18px + var(--sar)); bottom: calc(118px + var(--sab)); flex-direction: column; gap: 8px; align-items: flex-end; }
+  .drive-tools .chip { background: var(--glass); border: 1px solid var(--line); backdrop-filter: blur(12px); -webkit-backdrop-filter: blur(12px); color: var(--ink); min-height: 40px; }
+  .drive-tools .chip.on { background: var(--accent); color: var(--accent-ink); }
+  .keys { font-family: var(--mono); font-size: 10px; color: var(--dim); letter-spacing: .08em; text-align: right; }
+
+  @media (max-width: 760px) {
+    .hud { padding: 0; }
+    .brand { top: calc(12px + var(--sat)); left: calc(14px + var(--sal)); gap: 4px; }
+    .brand-mark { font-size: 15px; }
+    .tele { top: calc(10px + var(--sat)); right: calc(10px + var(--sar)); min-width: 0; padding: 8px 10px; gap: 6px; border-radius: 12px; }
+    .tele-row { gap: 10px; }
+    .tele-k { font-size: 8.5px; }
+    .tele-v { font-size: 11.5px; }
+    .tele-bar { width: 54px; }
+    .tele .extra { display: none !important; }
+    .tele.expanded .extra { display: flex !important; }
+    .tele-date { font-size: 10px; padding-top: 6px; }
+    .tele-toggle { display: block; font-family: var(--mono); font-size: 9px; color: var(--accent); letter-spacing: .1em; text-align: right; }
+    .ladder { left: calc(6px + var(--sal)); top: calc(96px + var(--sat)); gap: 2px; }
+    .rung { font-size: 10.5px; padding: 5px 10px 5px 7px; gap: 6px; }
+    .context { left: calc(10px + var(--sal)); right: calc(10px + var(--sar)); width: auto; bottom: calc(108px + var(--sab)); padding: 12px 14px; }
+    .context h2 { font-size: 16px; margin: 4px 0 4px; }
+    .context p { font-size: 12px; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
+    .context-facts { display: none; }
+    .context.expanded p { -webkit-line-clamp: unset; }
+    .context.expanded .context-facts { display: grid; }
+    .context-more { margin-top: 6px; }
+    .rover-mode .context { left: auto; right: calc(10px + var(--sar)); width: min(230px, 58vw); bottom: calc(300px + var(--sab)); }
+    .dock { bottom: calc(10px + var(--sab)); gap: 6px; }
+    .chip { padding: 8px 11px; font-size: 11.5px; }
+    .sheet { left: 0; right: 0; top: auto; bottom: 0; width: 100%; height: min(78vh, 680px); border-radius: 20px 20px 0 0; transform: translateY(105%); padding-bottom: var(--sab); }
+    .sheet.open { transform: none; }
+    .hint { top: auto; bottom: calc(220px + var(--sab)); }
+    .stick { left: calc(16px + var(--sal)); bottom: calc(122px + var(--sab)); width: 124px; height: 124px; }
+    .drive-tools { bottom: calc(122px + var(--sab)); right: calc(12px + var(--sar)); }
+    .keys { display: none; }
+    .rover-mode .hint { display: none; }
+  }
+  @media (min-width: 761px) and (max-height: 820px) {
+    .context p { display: -webkit-box; -webkit-line-clamp: 3; -webkit-box-orient: vertical; overflow: hidden; }
+    .context-facts { display: none; }
+  }
+  @media (prefers-reduced-motion: reduce) {
+    *, *::before, *::after { transition-duration: .01s !important; animation: none !important; }
+  }
+</style>
+<script type="importmap">
+{ "imports": {
+  "three": "https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js",
+  "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.160.0/examples/jsm/"
+} }
+</script>
+</head>
+<body>
+
+<div id="stage" aria-label="3D view of Mars. Drag to rotate, pinch or scroll to zoom."></div>
+<div class="labels" id="labels"></div>
+<div class="fader" id="fader"></div>
+
+<div class="boot" id="boot">
+  <div class="boot-inner">
+    <div class="boot-planet"></div>
+    <h1>ARES</h1>
+    <p>Mars explorer · live sky</p>
+    <div class="boot-bar"><div class="boot-fill" id="boot-fill"></div></div>
+    <div class="boot-status" id="boot-status">Loading Mars</div>
+  </div>
+</div>
+
+<main class="hud" id="hud">
+  <header class="brand">
+    <div class="brand-mark">ARES</div>
+    <div class="brand-level" id="level-name">Mars</div>
+    <div class="brand-alt orbit-only">Altitude <b id="alt">0</b></div>
+    <div class="brand-alt rover-only">Jezero Crater · <b id="ltst-brand">--:--</b></div>
+  </header>
+
+  <section class="tele glass" id="tele" aria-label="Live Mars data">
+    <div class="tele-row orbit-only"><span class="tele-k">From Sun</span><span class="tele-v" id="t-sun">0</span></div>
+    <div class="tele-row orbit-only"><span class="tele-k">Orbit speed</span><span class="tele-v" id="t-speed">0</span></div>
+    <div class="tele-row orbit-only"><span class="tele-k">Season</span><span class="tele-v" id="t-season">—</span></div>
+    <div class="tele-row extra orbit-only"><span class="tele-k">Mars time (MTC)</span><span class="tele-v" id="t-mtc">—</span></div>
+    <div class="tele-row extra orbit-only"><span class="tele-k">Mars Sol Date</span><span class="tele-v" id="t-msd">—</span></div>
+    <div class="tele-row extra orbit-only"><span class="tele-k">From Earth</span><span class="tele-v" id="t-earth">—</span></div>
+    <div class="tele-row extra orbit-only"><span class="tele-k">Signal delay</span><span class="tele-v" id="t-light">—</span></div>
+    <div class="tele-row extra orbit-only"><span class="tele-k">Perseverance</span><span class="tele-v" id="t-sol">—</span></div>
+    <div class="tele-row extra orbit-only"><span class="tele-k">Next launch window</span><span class="tele-v" id="t-window">—</span></div>
+    <div class="tele-row rover-only"><span class="tele-k">Speed</span><span class="tele-v" id="r-speed">0</span></div>
+    <div class="tele-row rover-only"><span class="tele-k">Heading</span><span class="tele-v" id="r-head">—</span></div>
+    <div class="tele-row rover-only"><span class="tele-k">Battery</span><span class="tele-v" id="r-batt">—</span></div>
+    <div class="tele-row extra rover-only"><span class="tele-k">Odometer</span><span class="tele-v" id="r-odo">0</span></div>
+    <div class="tele-row extra rover-only"><span class="tele-k">Sun</span><span class="tele-v" id="r-sun">—</span></div>
+    <div class="tele-row extra rover-only"><span class="tele-k">To New Jezero</span><span class="tele-v" id="r-base">—</span></div>
+    <div class="tele-date"><time id="t-date">—</time></div>
+    <button class="tele-toggle" id="tele-toggle">More ▾</button>
+  </section>
+
+  <nav class="ladder" id="ladder" aria-label="Zoom levels"></nav>
+
+  <article class="context glass" id="context">
+    <div class="context-tag" id="ctx-tag">Zoom level</div>
+    <h2 id="ctx-title">Mars</h2>
+    <p id="ctx-text"></p>
+    <div class="context-facts" id="ctx-facts"></div>
+    <div class="context-actions" id="ctx-actions"></div>
+    <button class="context-more" id="ctx-more">Read more ›</button>
+  </article>
+
+  <div class="probe" id="probe"><div class="probe-ring"></div><div class="probe-text" id="probe-text"></div></div>
+  <div class="hint" id="hint">Drag to turn · pinch or scroll to zoom · tap a marker</div>
+
+  <div class="stick rover-only" id="stick" aria-label="Drive joystick"><div class="stick-knob" id="knob"></div><div class="stick-label">Drive</div></div>
+  <div class="drive-tools rover-only" id="drive-tools">
+    <button class="chip" id="btn-cam">Driver view</button>
+    <button class="chip" id="btn-lights">Headlights</button>
+    <button class="chip solid" id="btn-manifest">Manifest ✦</button>
+    <button class="chip" id="btn-exit">Back to orbit</button>
+    <div class="keys">W A S D or arrows to drive · drag to look</div>
+  </div>
+
+  <div class="dock">
+    <div class="bar glass" id="timebar" aria-label="Time controls">
+      <button class="chip" data-rate="0" title="Pause"><svg viewBox="0 0 24 24"><path d="M8 5v14M16 5v14"/></svg>Pause</button>
+      <button class="chip on" data-rate="1">Live</button>
+      <button class="chip" data-rate="600">10 min/s</button>
+      <button class="chip" data-rate="3600">1 hr/s</button>
+      <button class="chip" data-rate="88775">1 sol/s</button>
+      <button class="chip" data-rate="1209600">2 wk/s</button>
+      <button class="chip" data-rate="-3600" title="Run time backwards">−1 hr/s</button>
+      <button class="chip" id="btn-now">Now</button>
+    </div>
+    <div class="bar glass">
+      <button class="chip" data-sheet="views"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="3"/><path d="M2 12s4-7 10-7 10 7 10 7-4 7-10 7S2 12 2 12z"/></svg>Views</button>
+      <button class="chip" data-sheet="layers"><svg viewBox="0 0 24 24"><path d="M12 3 2 8l10 5 10-5-10-5zM2 16l10 5 10-5M2 12l10 5 10-5"/></svg>Layers</button>
+      <button class="chip" data-sheet="sound"><svg viewBox="0 0 24 24"><path d="M4 10v4M8 7v10M12 4v16M16 8v8M20 11v2"/></svg>Sounds</button>
+      <button class="chip" data-sheet="learn"><svg viewBox="0 0 24 24"><path d="M4 5a2 2 0 0 1 2-2h13v16H6a2 2 0 0 0-2 2V5z"/><path d="M4 19a2 2 0 0 1 2-2h13"/></svg>Learn</button>
+    </div>
+  </div>
+</main>
+
+<aside class="sheet glass" id="sheet" aria-hidden="true">
+  <div class="sheet-head">
+    <div class="sheet-title" id="sheet-title">Learn</div>
+    <button class="x" id="sheet-close" aria-label="Close panel"><svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><path d="M6 6l12 12M18 6 6 18"/></svg></button>
+  </div>
+  <div class="tabs" id="tabs"></div>
+  <div class="sheet-body" id="sheet-body"></div>
+</aside>
+
+<div class="toast" id="toast"></div>
+
+<script type="module">
+import * as THREE from 'three';
+import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
+import { EffectComposer } from 'three/addons/postprocessing/EffectComposer.js';
+import { RenderPass } from 'three/addons/postprocessing/RenderPass.js';
+import { UnrealBloomPass } from 'three/addons/postprocessing/UnrealBloomPass.js';
+import { OutputPass } from 'three/addons/postprocessing/OutputPass.js';
+
+/* ================================================================== */
+/*  Constants and small helpers                                        */
+/* ================================================================== */
+const R_MARS = 3389.5;          // km = 1 scene unit in orbit view
+const AU = 149597870.7;
+const C_KMS = 299792.458;
+const GM_SUN = 1.32712440018e11;
+const OBLIQ = 23.4393;          // Earth's, for equatorial -> ecliptic
+const DEG = Math.PI / 180;
+const SUN_VIS_DIST = 6000;
+const JEZERO = { lat: 18.4447, lon: 77.4508 };
+const PERSEVERANCE_LANDING = Date.UTC(2021, 1, 18, 20, 55);
+const CURIOSITY_LANDING = Date.UTC(2012, 7, 6, 5, 17);
+const $ = id => document.getElementById(id);
+const sin = d => Math.sin(d * DEG);
+const cos = d => Math.cos(d * DEG);
+const norm360 = d => ((d % 360) + 360) % 360;
+const wrap180 = d => ((d + 540) % 360) - 180;
+const isMobile = matchMedia('(max-width: 760px)').matches || /Android|iPhone|iPad/i.test(navigator.userAgent);
+const fmt = (n, d = 0) => n.toLocaleString('en-US', { minimumFractionDigits: d, maximumFractionDigits: d });
+const fmtLat = v => `${Math.abs(v).toFixed(1)}°${v >= 0 ? 'N' : 'S'}`;
+const fmtLon = v => `${Math.abs(v).toFixed(1)}°${v >= 0 ? 'E' : 'W'}`;
+const hhmm = h => { h = ((h % 24) + 24) % 24; const H = Math.floor(h), M = Math.floor((h - H) * 60); return `${String(H).padStart(2, '0')}:${String(M).padStart(2, '0')}`; };
+
+/* ================================================================== */
+/*  Ephemeris                                                          */
+/*  Planets: JPL approximate Keplerian elements (1800-2050).          */
+/*  Mars time: NASA GISS Mars24 algorithm.                             */
+/*  Mars orientation: IAU pole and prime meridian.                     */
+/* ================================================================== */
+const ELEMENTS = {
+  earth: [1.00000261, 0.00000562, 0.01671123, -0.00004392, -0.00001531, -0.01294668, 100.46457166, 35999.37244981, 102.93768193, 0.32327364, 0, 0],
+  mars: [1.52371034, 0.00001847, 0.09339410, 0.00007882, 1.84969142, -0.00813131, -4.55343205, 19140.30268499, -23.94362959, 0.44441088, 49.55953891, -0.29257343],
+};
+function helio(name, ms) {
+  const T = (ms / 86400000 + 2440587.5 - 2451545.0) / 36525;
+  const el = ELEMENTS[name];
+  const a = el[0] + el[1] * T, e = el[2] + el[3] * T, I = el[4] + el[5] * T;
+  const L = el[6] + el[7] * T, w = el[8] + el[9] * T, O = el[10] + el[11] * T;
+  const om = w - O;
+  const M = norm360(L - w) * DEG;
+  let E = M + e * Math.sin(M);
+  for (let i = 0; i < 6; i++) E -= (E - e * Math.sin(E) - M) / (1 - e * Math.cos(E));
+  const xp = a * (Math.cos(E) - e), yp = a * Math.sqrt(1 - e * e) * Math.sin(E);
+  const co = cos(om), so = sin(om), cO = cos(O), sO = sin(O), cI = cos(I), sI = sin(I);
+  return new THREE.Vector3(
+    (co * cO - so * sO * cI) * xp + (-so * cO - co * sO * cI) * yp,
+    (co * sO + so * cO * cI) * xp + (-so * sO + co * cO * cI) * yp,
+    (so * sI) * xp + (co * sI) * yp
+  ).multiplyScalar(AU);   // km, ecliptic J2000
+}
+// ecliptic (x, y, z) -> scene: ecliptic north = +Y
+const eclToScene = (v, out = new THREE.Vector3()) => out.set(v.x, v.z, -v.y);
+function eqToScene(x, y, z, out = new THREE.Vector3()) {
+  const ce = cos(OBLIQ), se = sin(OBLIQ);
+  return out.set(x, -y * se + z * ce, -(y * ce + z * se));
+}
+function mars24(ms) {
+  const jdtt = ms / 86400000 + 2440587.5 + 69.184 / 86400;
+  const dt = jdtt - 2451545.0;
+  const M = 19.3871 + 0.52402073 * dt;
+  const aFMS = 270.3871 + 0.524038496 * dt;
+  const nuM = (10.691 + 3.0e-7 * dt) * sin(M) + 0.623 * sin(2 * M) + 0.050 * sin(3 * M) + 0.005 * sin(4 * M) + 0.0005 * sin(5 * M);
+  const Ls = norm360(aFMS + nuM);
+  const eot = 2.861 * sin(2 * Ls) - 0.071 * sin(4 * Ls) + 0.002 * sin(6 * Ls) - nuM;
+  const msd = (dt - 4.5) / 1.0274912517 + 44796.0 - 0.0009626;
+  const mtc = ((24 * msd) % 24 + 24) % 24;
+  const decl = Math.asin(0.42565 * sin(Ls)) / DEG + 0.25 * sin(Ls);
+  return { Ls, eot, msd, mtc, decl };
+}
+const MARS_AXES = { X: new THREE.Vector3(), Y: new THREE.Vector3(), Z: new THREE.Vector3(), Q: new THREE.Vector3(), P: new THREE.Vector3() };
+function marsOrientation(ms) {
+  const d = ms / 86400000 + 2440587.5 - 2451545.0, T = d / 36525;
+  const a0 = 317.68143 - 0.1061 * T, d0 = 52.88650 - 0.0609 * T, W = 176.630 + 350.89198226 * d;
+  const Z = [cos(d0) * cos(a0), cos(d0) * sin(a0), sin(d0)];
+  const Q = [-sin(a0), cos(a0), 0];
+  const P = [Z[1] * Q[2] - Z[2] * Q[1], Z[2] * Q[0] - Z[0] * Q[2], Z[0] * Q[1] - Z[1] * Q[0]];
+  const Xb = [0, 1, 2].map(i => Q[i] * cos(W) + P[i] * sin(W));
+  const Yb = [Z[1] * Xb[2] - Z[2] * Xb[1], Z[2] * Xb[0] - Z[0] * Xb[2], Z[0] * Xb[1] - Z[1] * Xb[0]];
+  eqToScene(...Xb, MARS_AXES.X); eqToScene(...Yb, MARS_AXES.Y); eqToScene(...Z, MARS_AXES.Z);
+  eqToScene(...Q, MARS_AXES.Q); eqToScene(...P, MARS_AXES.P);
+  return MARS_AXES;
+}
+function seasonOf(Ls) {
+  const n = ['Spring', 'Summer', 'Autumn', 'Winter'][Math.floor(Ls / 90) % 4];
+  const s = ['Autumn', 'Winter', 'Spring', 'Summer'][Math.floor(Ls / 90) % 4];
+  return { n, s };
+}
+// Hohmann launch windows open when Mars leads Earth by about 44°
+function nextLaunchWindow(ms) {
+  const phase = t => { const m = helio('mars', t), e = helio('earth', t); return wrap180(Math.atan2(m.y, m.x) / DEG - Math.atan2(e.y, e.x) / DEG); };
+  let t = ms, prev = phase(t) - 44;
+  for (let i = 0; i < 520; i++) {
+    const t2 = t + 2 * 86400000, cur = phase(t2) - 44;
+    if (prev > 0 && cur <= 0 && prev - cur < 30) return t2;
+    t = t2; prev = cur;
+  }
+  return null;
+}
+
+/* Mars body-fixed frame: lon 0 on +X, east (lon 90) on -Z, north on +Y */
+function latLonToLocal(lat, lon, r = 1, out = new THREE.Vector3()) {
+  return out.set(r * cos(lat) * cos(lon), r * sin(lat), -r * cos(lat) * sin(lon));
+}
+function localToLatLon(p) {
+  const v = p.clone().normalize();
+  return { lat: Math.asin(THREE.MathUtils.clamp(v.y, -1, 1)) / DEG, lon: Math.atan2(-v.z, v.x) / DEG };
+}
+function greatCircleKm(a, b) {
+  const x = sin(a.lat) * sin(b.lat) + cos(a.lat) * cos(b.lat) * cos(a.lon - b.lon);
+  return Math.acos(THREE.MathUtils.clamp(x, -1, 1)) * R_MARS;
+}
+
+/* ================================================================== */
+/*  Renderer, orbital scene, camera                                    */
+/* ================================================================== */
+const stage = $('stage');
+const renderer = new THREE.WebGLRenderer({ antialias: true, logarithmicDepthBuffer: true, powerPreference: 'high-performance' });
+renderer.setPixelRatio(Math.min(devicePixelRatio, isMobile ? 1.6 : 2));
+renderer.setSize(innerWidth, innerHeight);
+renderer.toneMapping = THREE.ACESFilmicToneMapping;
+renderer.toneMappingExposure = 1.0;
+renderer.shadowMap.enabled = true;
+renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+stage.appendChild(renderer.domElement);
+const maxTex = renderer.capabilities.maxTextureSize;
+const maxAniso = renderer.capabilities.getMaxAnisotropy();
+
+const scene = new THREE.Scene();
+const camera = new THREE.PerspectiveCamera(45, innerWidth / innerHeight, 0.0005, 60000);
+camera.position.set(0, 0.8, 4.2);
+const controls = new OrbitControls(camera, renderer.domElement);
+controls.enableDamping = true;
+controls.dampingFactor = 0.06;
+controls.enablePan = false;
+controls.minDistance = 1.22;
+controls.maxDistance = 160;
+controls.rotateSpeed = 0.55;
+controls.zoomSpeed = 0.9;
+controls.autoRotate = true;
+controls.autoRotateSpeed = 0.4;
+let lastTouch = -1e9;
+
+const composer = new EffectComposer(renderer);
+const renderPass = new RenderPass(scene, camera);
+composer.addPass(renderPass);
+const bloom = new UnrealBloomPass(new THREE.Vector2(innerWidth / 2, innerHeight / 2), 0.45, 0.5, 1.25);
+composer.addPass(bloom);
+composer.addPass(new OutputPass());
+
+/* loading */
+const manager = new THREE.LoadingManager();
+const bootLines = ['Loading Mars', 'Raising Olympus Mons', 'Carving Valles Marineris', 'Freezing the polar caps', 'Finding Phobos and Deimos', 'Pointing at the Sun'];
+manager.onProgress = (url, loaded, total) => {
+  $('boot-fill').style.transform = `scaleX(${loaded / total})`;
+  $('boot-status').textContent = bootLines[Math.min(loaded, bootLines.length - 1)];
+};
+manager.onError = url => { $('boot-status').textContent = `Could not load ${url.split('/').pop()}`; };
+const loader = new THREE.TextureLoader(manager);
+function tex(path, srgb = true) {
+  const t = loader.load(path);
+  if (srgb) t.colorSpace = THREE.SRGBColorSpace;
+  t.anisotropy = maxAniso;
+  return t;
+}
+const marsColor = tex(maxTex >= 8192 && !(/iPhone|iPad/i.test(navigator.userAgent)) ? 'tex/mars_color_8k.jpg' : 'tex/mars_color_4k.jpg');
+const marsNormal = tex('tex/mars_normal_4k.jpg', false);
+const marsMola = tex('tex/mars_mola_4k.jpg');
+
+/* shared GLSL noise */
+const NOISE = /* glsl */`
+  float hash13(vec3 p) { p = fract(p * .1031); p += dot(p, p.zyx + 31.32); return fract((p.x + p.y) * p.z); }
+  float vnoise(vec3 p) {
+    vec3 i = floor(p), f = fract(p); f = f * f * (3. - 2. * f);
+    return mix(mix(mix(hash13(i), hash13(i + vec3(1,0,0)), f.x), mix(hash13(i + vec3(0,1,0)), hash13(i + vec3(1,1,0)), f.x), f.y),
+               mix(mix(hash13(i + vec3(0,0,1)), hash13(i + vec3(1,0,1)), f.x), mix(hash13(i + vec3(0,1,1)), hash13(i + vec3(1,1,1)), f.x), f.y), f.z);
+  }
+  float fbm(vec3 p) { float s = 0., a = .5; for (int i = 0; i < 5; i++) { s += a * vnoise(p); p *= 2.03; a *= .5; } return s; }
+`;
+
+/* ================================================================== */
+/*  Mars globe                                                         */
+/* ================================================================== */
+const marsUniforms = {
+  uMap: { value: marsColor }, uMola: { value: marsMola }, uNormal: { value: marsNormal },
+  uSun: { value: new THREE.Vector3(1, 0, 0) }, uCam: { value: new THREE.Vector3() },
+  uSunI: { value: 2.1 }, uRelief: { value: 1 }, uMolaOn: { value: 0 }, uHaze: { value: 0.35 },
+};
+const marsMat = new THREE.ShaderMaterial({
+  uniforms: marsUniforms,
+  vertexShader: /* glsl */`
+    #include <common>
+    #include <logdepthbuf_pars_vertex>
+    varying vec3 vObj; varying vec2 vUv;
+    void main() { vObj = position; vUv = uv; gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);
+      #include <logdepthbuf_vertex>
+    }`,
+  fragmentShader: /* glsl */`
+    #include <common>
+    #include <logdepthbuf_pars_fragment>
+    uniform sampler2D uMap, uMola, uNormal; uniform vec3 uSun, uCam; uniform float uSunI, uRelief, uMolaOn, uHaze;
+    varying vec3 vObj; varying vec2 vUv;
+    ${NOISE}
+    void main() {
+      #include <logdepthbuf_fragment>
+      vec3 n = normalize(vObj);
+      vec3 east = normalize(cross(vec3(0.0, 1.0, 0.0), n) + vec3(1e-6, 0.0, 0.0));
+      vec3 north = cross(n, east);
+      vec3 V = normalize(uCam - vObj);
+      vec3 albedo = texture2D(uMap, vUv).rgb;
+      albedo = mix(albedo, texture2D(uMola, vUv).rgb * 0.8, uMolaOn);
+      vec3 tn = texture2D(uNormal, vUv).xyz * 2.0 - 1.0;
+      tn.xy *= uRelief;
+      float px = length(fwidth(vObj));
+      float close = 1.0 - smoothstep(0.0006, 0.0022, px);
+      if (close > 0.001) {
+        vec3 q = vObj * 700.0;
+        albedo *= mix(1.0, 0.82 + 0.36 * (fbm(q) * 0.6 + fbm(q * 3.7) * 0.4), close * (1.0 - uMolaOn));
+        tn.xy += (vec2(fbm(q + 3.1), fbm(q + 9.7)) - 0.5) * 0.45 * close * uRelief;
+      }
+      vec3 nP = normalize(east * tn.x + north * tn.y + n * max(tn.z, 0.2));
+      float ndlG = dot(n, uSun);
+      float mu0 = max(dot(nP, uSun), 0.0), mu = max(dot(n, V), 0.0);
+      // dusty regolith: a little Minnaert-style limb darkening
+      float lit = pow(mu0, 0.9) * pow(max(mu, 0.05), 0.12) * smoothstep(-0.06, 0.06, ndlG);
+      vec3 col = albedo * lit * uSunI;
+      // a thin dust haze lifts the whole disc toward butterscotch
+      vec3 dust = vec3(0.86, 0.55, 0.36);
+      col = mix(col, dust * uSunI * 0.55 * clamp(ndlG + 0.15, 0.0, 1.0), uHaze * 0.22 + pow(1.0 - mu, 3.0) * 0.55 * (0.4 + uHaze));
+      // twilight: a faint blue-ish fringe right at the terminator, from dust scattering forward
+      col += vec3(0.25, 0.35, 0.55) * exp(-pow((ndlG + 0.03) / 0.05, 2.0)) * 0.05 * uSunI;
+      gl_FragColor = vec4(col, 1.0);
+      #include <tonemapping_fragment>
+      #include <colorspace_fragment>
+    }`,
+});
+marsMat.extensions = { derivatives: true };
+const mars = new THREE.Mesh(new THREE.SphereGeometry(1, isMobile ? 192 : 288, isMobile ? 96 : 144), marsMat);
+scene.add(mars);
+
+const atmoUniforms = { uSun: { value: new THREE.Vector3(1, 0, 0) } };
+const atmo = new THREE.Mesh(
+  new THREE.SphereGeometry(1.025, 128, 64),
+  new THREE.ShaderMaterial({
+    uniforms: atmoUniforms,
+    vertexShader: /* glsl */`
+      #include <common>
+      #include <logdepthbuf_pars_vertex>
+      varying vec3 vN; varying vec3 vW;
+      void main() { vN = normalize(mat3(modelMatrix) * normal); vec4 wp = modelMatrix * vec4(position, 1.0); vW = wp.xyz;
+        gl_Position = projectionMatrix * viewMatrix * wp;
+        #include <logdepthbuf_vertex>
+      }`,
+    fragmentShader: /* glsl */`
+      #include <common>
+      #include <logdepthbuf_pars_fragment>
+      uniform vec3 uSun; varying vec3 vN; varying vec3 vW;
+      void main() {
+        #include <logdepthbuf_fragment>
+        vec3 n = normalize(vN); vec3 V = normalize(cameraPosition - vW);
+        float rim = pow(clamp(-dot(n, V) / 0.22, 0.0, 1.0), 3.2);
+        float s = dot(n, uSun);
+        vec3 col = mix(vec3(0.45, 0.55, 0.85), vec3(1.0, 0.68, 0.45), clamp(s * 2.5 + 0.4, 0.0, 1.0));
+        gl_FragColor = vec4(col * rim * clamp(s + 0.25, 0.0, 1.0) * 0.7, 1.0);
+      }`,
+    side: THREE.BackSide, transparent: true, depthWrite: false, blending: THREE.AdditiveBlending,
+  })
+);
+scene.add(atmo);
+
+/* latitude grid */
+const gridRoot = new THREE.Group();
+mars.add(gridRoot);
+{
+  const R = 1.0025, pts = [], eq = [];
+  for (let lat = -75; lat <= 75; lat += 15) for (let i = 0; i < 180; i++) (lat === 0 ? eq : pts).push(latLonToLocal(lat, i * 2, R), latLonToLocal(lat, i * 2 + 2, R));
+  for (let lon = 0; lon < 360; lon += 15) for (let i = 0; i < 90; i++) (lon === 0 ? eq : pts).push(latLonToLocal(-90 + i * 2, lon, R), latLonToLocal(-88 + i * 2, lon, R));
+  gridRoot.add(new THREE.LineSegments(new THREE.BufferGeometry().setFromPoints(pts), new THREE.LineBasicMaterial({ color: 0xffd2b0, transparent: true, opacity: 0.16, depthWrite: false })));
+  gridRoot.add(new THREE.LineSegments(new THREE.BufferGeometry().setFromPoints(eq), new THREE.LineBasicMaterial({ color: 0xff9a6b, transparent: true, opacity: 0.5, depthWrite: false })));
+}
+gridRoot.visible = false;
+
+/* ================================================================== */
+/*  Sun, Earth, stars, moons                                           */
+/* ================================================================== */
+function glowTexture(stops, size = 256, alpha = false) {
+  const c = document.createElement('canvas'); c.width = c.height = size;
+  const g = c.getContext('2d');
+  if (!alpha) { g.fillStyle = '#000'; g.fillRect(0, 0, size, size); }
+  const grd = g.createRadialGradient(size / 2, size / 2, 0, size / 2, size / 2, size / 2);
+  stops.forEach(([o, col]) => { const [r, gr, b, a = 1] = col.match(/[\d.]+/g).map(Number); grd.addColorStop(o, alpha ? `rgba(${r},${gr},${b},${a})` : `rgb(${r * a},${gr * a},${b * a})`); });
+  g.fillStyle = grd; g.fillRect(0, 0, size, size);
+  const t = new THREE.CanvasTexture(c); t.colorSpace = THREE.SRGBColorSpace; return t;
+}
+const sunRoot = new THREE.Group();
+scene.add(sunRoot);
+const sunBall = new THREE.Mesh(new THREE.SphereGeometry(1, 40, 24), new THREE.MeshBasicMaterial({ color: new THREE.Color(1, 0.95, 0.88).multiplyScalar(30) }));
+sunRoot.add(sunBall);
+const sunGlow = new THREE.Sprite(new THREE.SpriteMaterial({ map: glowTexture([[0, 'rgba(255,246,228,1)'], [0.12, 'rgba(255,226,186,.5)'], [0.35, 'rgba(255,186,120,.1)'], [1, 'rgba(255,160,80,0)']]), color: new THREE.Color(0.9, 0.84, 0.74), blending: THREE.AdditiveBlending, depthWrite: false, transparent: true }));
+sunRoot.add(sunGlow);
+const earthDot = new THREE.Sprite(new THREE.SpriteMaterial({ map: glowTexture([[0, 'rgba(225,240,255,1)'], [0.18, 'rgba(140,190,255,.6)'], [1, 'rgba(80,140,255,0)']]), blending: THREE.AdditiveBlending, depthWrite: false, transparent: true, sizeAttenuation: false }));
+earthDot.scale.setScalar(0.03);
+scene.add(earthDot);
+
+const skyRoot = new THREE.Group();
+scene.add(skyRoot);
+function makeStars(N, radius) {
+  const galPole = new THREE.Vector3(-0.8676, 0.4559, 0.1981).normalize();
+  const pos = new Float32Array(N * 3), col = new Float32Array(N * 3), size = new Float32Array(N);
+  const v = new THREE.Vector3();
+  const temps = [[0.62, 0.72, 1.0], [0.8, 0.86, 1.0], [1.0, 1.0, 1.0], [1.0, 0.94, 0.82], [1.0, 0.82, 0.6], [1.0, 0.7, 0.5]];
+  for (let i = 0; i < N; i++) {
+    v.set(Math.random() * 2 - 1, Math.random() * 2 - 1, Math.random() * 2 - 1);
+    if (v.lengthSq() > 1 || v.lengthSq() < 1e-4) { i--; continue; }
+    v.normalize();
+    if (Math.random() < 0.45) { const b = v.dot(galPole); v.addScaledVector(galPole, -b * (0.85 + Math.random() * 0.15)).normalize(); }
+    v.multiplyScalar(radius);
+    pos.set([v.x, v.y, v.z], i * 3);
+    const m = 6.6 - 8.2 * Math.pow(Math.random(), 5.5);
+    const flux = Math.pow(10, -0.4 * (m - 1.0));
+    size[i] = THREE.MathUtils.clamp(1.1 + 1.6 * Math.sqrt(flux), 1.1, 5.5);
+    const t = temps[Math.floor(Math.pow(Math.random(), 0.8) * temps.length)];
+    const b = THREE.MathUtils.clamp(0.25 + flux * 0.9, 0.18, 2.2);
+    col.set([t[0] * b, t[1] * b, t[2] * b], i * 3);
+  }
+  const g = new THREE.BufferGeometry();
+  g.setAttribute('position', new THREE.BufferAttribute(pos, 3));
+  g.setAttribute('aColor', new THREE.BufferAttribute(col, 3));
+  g.setAttribute('aSize', new THREE.BufferAttribute(size, 1));
+  const mat = new THREE.ShaderMaterial({
+    uniforms: { uPR: { value: renderer.getPixelRatio() }, uFade: { value: 1 } },
+    vertexShader: /* glsl */`
+      #include <common>
+      #include <logdepthbuf_pars_vertex>
+      attribute vec3 aColor; attribute float aSize; uniform float uPR; varying vec3 vC;
+      void main() { vC = aColor; gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0); gl_PointSize = aSize * uPR;
+        #include <logdepthbuf_vertex>
+      }`,
+    fragmentShader: /* glsl */`
+      #include <common>
+      #include <logdepthbuf_pars_fragment>
+      uniform float uFade; varying vec3 vC;
+      void main() {
+        #include <logdepthbuf_fragment>
+        float d = length(gl_PointCoord - 0.5); float a = smoothstep(0.5, 0.0, d); a *= a;
+        gl_FragColor = vec4(vC * a * uFade, 1.0); }`,
+    blending: THREE.AdditiveBlending, depthWrite: false, transparent: true, fog: false,
+  });
+  return new THREE.Points(g, mat);
+}
+skyRoot.add(makeStars(isMobile ? 9000 : 15000, 30000));
+
+/* Phobos and Deimos (drawn 8x larger so you can see them; positions approximate) */
+const moonLight = new THREE.DirectionalLight(0xfff0e0, 2.4);
+scene.add(moonLight);
+scene.add(new THREE.AmbientLight(0x402a20, 0.15));
+function lumpyRock(radius, seed, detail = 3) {
+  const g = new THREE.IcosahedronGeometry(radius, detail);
+  const p = g.attributes.position, v = new THREE.Vector3();
+  for (let i = 0; i < p.count; i++) {
+    v.fromBufferAttribute(p, i);
+    const n = Math.sin(v.x * 3.1 + seed) * Math.cos(v.y * 2.7 - seed) * 0.18 + Math.sin(v.z * 5.3 + seed * 2) * 0.08;
+    v.multiplyScalar(1 + n);
+    p.setXYZ(i, v.x, v.y, v.z);
+  }
+  g.computeVertexNormals();
+  return g;
+}
+const moonEq = new THREE.Group();
+scene.add(moonEq);
+const MOONS = [
+  { name: 'Phobos', a: 9376 / R_MARS, period: 0.31891023, size: 11.27 / R_MARS, stretch: [1.2, 1, 0.85], phase0: 0.0, seed: 1.3 },
+  { name: 'Deimos', a: 23463.2 / R_MARS, period: 1.263, size: 6.2 / R_MARS, stretch: [1.25, 1, 0.9], phase0: 2.1, seed: 4.2 },
+];
+MOONS.forEach(m => {
+  m.mesh = new THREE.Mesh(lumpyRock(1, m.seed), new THREE.MeshStandardMaterial({ color: 0x6e5a4e, roughness: 1, flatShading: true }));
+  m.mesh.scale.set(...m.stretch).multiplyScalar(m.size * 8);
+  moonEq.add(m.mesh);
+  const pts = [];
+  for (let i = 0; i <= 128; i++) pts.push(new THREE.Vector3(Math.cos(i / 128 * Math.PI * 2) * m.a, 0, -Math.sin(i / 128 * Math.PI * 2) * m.a));
+  m.orbit = new THREE.Line(new THREE.BufferGeometry().setFromPoints(pts), new THREE.LineBasicMaterial({ color: 0xffb08a, transparent: true, opacity: 0.25, depthWrite: false }));
+  moonEq.add(m.orbit);
+});
+
+/* ================================================================== */
+/*  Places                                                             */
+/* ================================================================== */
+const SITES = [
+  { id: 'jezero', name: 'Perseverance · Jezero', kind: 'mission', lat: 18.4447, lon: 77.4508, meta: 'Landed 18 Feb 2021 · Jezero Crater', drive: true,
+    text: 'Jezero is a 45 km crater that held a lake about 3.5 billion years ago. A river built a fan-shaped delta into it, and that is where Perseverance is looking for signs of ancient life, sealing rock samples in tubes for a future mission to bring home. Ingenuity, the little helicopter it carried, made the first powered flight on another planet here on 19 April 2021, then flew 72 times.' },
+  { id: 'gale', name: 'Curiosity · Gale', kind: 'mission', lat: -4.59, lon: 137.44, meta: 'Landed 6 Aug 2012 · Gale Crater, Mount Sharp',
+    text: 'Curiosity has been climbing Mount Sharp, a 5 km layered mountain in the middle of Gale Crater, for over a decade. Each layer is a page of Mars history; together they show a planet that went from wet to dry.' },
+  { id: 'zhurong', name: 'Zhurong', kind: 'mission', lat: 25.066, lon: 109.925, meta: 'China · landed May 2021 · Utopia Planitia',
+    text: 'China’s first Mars rover, delivered by Tianwen-1, which reached orbit, landed and roved on its first try. Zhurong explored the plains of Utopia Planitia for about a year.' },
+  { id: 'viking1', name: 'Viking 1', kind: 'mission', lat: 22.27, lon: -47.95, meta: 'USA · landed 20 Jul 1976 · Chryse Planitia',
+    text: 'The first spacecraft to land on Mars and work for years. Its pictures of a dusty orange plain under a pink sky changed how people imagined the planet.' },
+  { id: 'viking2', name: 'Viking 2', kind: 'mission', lat: 47.64, lon: 134.29, meta: 'USA · landed 3 Sep 1976 · Utopia Planitia',
+    text: 'Viking 2 photographed thin frost on the ground during the Martian winter, one of the first hints of how water moves on Mars today.' },
+  { id: 'pathfinder', name: 'Pathfinder', kind: 'mission', lat: 19.13, lon: -33.22, meta: 'USA · landed 4 Jul 1997 · Ares Vallis',
+    text: 'Bounced down on airbags and released Sojourner, the first rover on Mars, about the size of a microwave oven.' },
+  { id: 'spirit', name: 'Spirit', kind: 'mission', lat: -14.57, lon: 175.47, meta: 'USA · landed Jan 2004 · Gusev Crater',
+    text: 'Planned for 90 sols, Spirit worked for over six years. Dragging a stuck wheel, it scraped up nearly pure silica: a sign of ancient hot springs.' },
+  { id: 'opportunity', name: 'Opportunity', kind: 'mission', lat: -1.95, lon: -5.53, meta: 'USA · landed Jan 2004 · Meridiani Planum',
+    text: 'Also planned for 90 sols, Opportunity drove 45 km over almost 15 years, a record for driving on another world, until a planet-wide dust storm in 2018 covered its solar panels.' },
+  { id: 'insight', name: 'InSight', kind: 'mission', lat: 4.50, lon: 135.62, meta: 'USA · landed Nov 2018 · Elysium Planitia',
+    text: 'A lander that listened inside Mars. Its seismometer recorded more than a thousand marsquakes and measured the size of Mars’s liquid core.' },
+  { id: 'phoenix', name: 'Phoenix', kind: 'mission', lat: 68.22, lon: -125.75, meta: 'USA · landed May 2008 · far north',
+    text: 'Phoenix scraped the ground and found water ice a few centimetres down. Some of it turned to vapour in front of its camera.' },
+  { id: 'mars3', name: 'Mars 3', kind: 'mission', lat: -45, lon: -158, meta: 'Soviet Union · Dec 1971',
+    text: 'The first spacecraft to soft-land on Mars. It went silent within seconds of landing, during a global dust storm, but it got there first.' },
+  { id: 'olympus', name: 'Olympus Mons', kind: 'nature', lat: 18.65, lon: -133.8, meta: 'About 22 km high · about 600 km wide',
+    text: 'The tallest volcano in the Solar System, roughly two and a half times the height of Everest above sea level and as wide as France. Its slopes are so gentle you could walk up most of it without noticing you were climbing.' },
+  { id: 'valles', name: 'Valles Marineris', kind: 'nature', lat: -13.9, lon: -59.2, meta: 'About 4,000 km long · up to 7 km deep',
+    text: 'A canyon system that would stretch across India from Gujarat to Assam and further. It is a crack in the crust, torn open as the Tharsis volcanoes swelled up next to it.' },
+  { id: 'hellas', name: 'Hellas Planitia', kind: 'nature', lat: -42.4, lon: 70.5, meta: 'About 2,300 km wide · about 7 km deep',
+    text: 'One of the largest impact basins in the Solar System. At the bottom the air pressure is high enough that liquid water could last briefly before boiling or freezing.' },
+  { id: 'npole', name: 'North polar cap', kind: 'nature', lat: 85, lon: 0, meta: 'Water ice up to about 3 km thick',
+    text: 'A dome of water ice with dark spiral troughs cut by wind. Each winter a layer of frozen carbon dioxide settles on top, then turns back into gas in spring.' },
+  { id: 'spole', name: 'South polar cap', kind: 'nature', lat: -86, lon: -30, meta: 'Carbon dioxide ice over water ice',
+    text: 'The southern cap keeps a permanent layer of dry ice on top. When spring sunlight warms it, jets of gas break through and spray dark fans of dust across the ice.' },
+  { id: 'newjezero', name: 'New Jezero', kind: 'vision', lat: 18.62, lon: 77.62, meta: 'A vision of the future · not a real place', drive: true,
+    text: 'Our picture of a future human town on the edge of the Jezero delta: homes under domes, glowing greenhouses, solar fields and landing pads. Drive there and press Manifest to watch it grow.' },
+];
+SITES.forEach(s => { s.local = latLonToLocal(s.lat, s.lon, 1); });
+
+/* labels */
+const labelLayer = $('labels');
+function addLabel(text, cls, onClick) {
+  const el = document.createElement('button');
+  el.className = `tag ${cls}`; el.textContent = text;
+  el.addEventListener('click', e => { e.stopPropagation(); onClick?.(); });
+  labelLayer.appendChild(el);
+  return { el, visible: true };
+}
+SITES.forEach(s => { s.label = addLabel(s.name, s.kind, () => openSite(s)); });
+MOONS.forEach(m => { m.label = addLabel(m.name, 'body', () => openSheet('learn', 'overview')); });
+const sunLabel = addLabel('Sun', 'body', () => openSheet('learn', 'orbit'));
+const earthLabel = addLabel('Earth', 'body', () => openSheet('learn', 'orbit'));
+const projV = new THREE.Vector3();
+function placeLabel(l, world, show, cam = camera) {
+  if (!show) { if (l.visible) { l.el.classList.add('hide'); l.visible = false; } return; }
+  projV.copy(world).project(cam);
+  if (projV.z > 1 || Math.abs(projV.x) > 1.1 || Math.abs(projV.y) > 1.1) { if (l.visible) { l.el.classList.add('hide'); l.visible = false; } return; }
+  l.el.style.transform = `translate(${(projV.x * 0.5 + 0.5) * innerWidth - 8}px, ${(-projV.y * 0.5 + 0.5) * innerHeight - 11}px)`;
+  if (!l.visible) { l.el.classList.remove('hide'); l.visible = true; }
+}
+
+/* ================================================================== */
+/*  State and simulation                                               */
+/* ================================================================== */
+const state = {
+  simMs: Date.now(), rate: 1, mode: 'orbit',
+  labels: true, tracks: true, base: true, haze: true, moons: true, grid: false, mola: false, spin: true, trueScale: false, relief: true,
+  level: null, follow: false,
+};
+const sim = { m24: null, sunScene: new THREE.Vector3(), sunBody: new THREE.Vector3(), earthScene: new THREE.Vector3(), rS: 0, rE: 0, speed: 0, subsolar: { lat: 0, lon: 0 } };
+const invQ = new THREE.Quaternion();
+const basisM = new THREE.Matrix4();
+const tmpA = new THREE.Vector3(), tmpB = new THREE.Vector3(), tmpC = new THREE.Vector3();
+function updateSim() {
+  const ms = state.simMs;
+  const pm = helio('mars', ms), pe = helio('earth', ms);
+  sim.rS = pm.length();
+  sim.speed = Math.sqrt(GM_SUN * (2 / sim.rS - 1 / (1.52371034 * AU)));
+  eclToScene(pm.clone().negate(), sim.sunScene).normalize();
+  const de = pe.clone().sub(pm); sim.rE = de.length();
+  eclToScene(de, sim.earthScene).normalize();
+  sim.m24 = mars24(ms);
+  const ax = marsOrientation(ms);
+  basisM.makeBasis(ax.X, ax.Z, tmpA.copy(ax.Y).negate());
+  mars.quaternion.setFromRotationMatrix(basisM);
+  invQ.copy(mars.quaternion).invert();
+  sim.sunBody.copy(sim.sunScene).applyQuaternion(invQ);
+  sim.subsolar = localToLatLon(sim.sunBody);
+  basisM.makeBasis(ax.Q, ax.Z, tmpA.copy(ax.P).negate());
+  moonEq.quaternion.setFromRotationMatrix(basisM);
+}
+// local true solar time at a longitude, from the real Sun direction
+const ltstAt = lon => norm360(180 + lon - sim.subsolar.lon) / 15;
+
+/* ================================================================== */
+/*  Zoom levels, context card                                          */
+/* ================================================================== */
+const LEVELS = [
+  { key: 'orbit', name: 'Low orbit', maxAlt: 3000, fly: 1.45 },
+  { key: 'mars', name: 'Mars', maxAlt: 40000, fly: 3.6 },
+  { key: 'moons', name: 'Mars & moons', maxAlt: 160000, fly: 13 },
+  { key: 'deep', name: 'Deep space', maxAlt: Infinity, fly: 70 },
+];
+const CONTEXT = {
+  orbit: { tag: 'Altitude under 3,000 km', title: 'Low orbit',
+    text: 'This is where the orbiters work. NASA’s Reconnaissance Orbiter can see things the size of a kitchen table from about 300 km up. The thin air below is about 1% as thick as Earth’s, so a parachute alone can’t land anything heavy.',
+    facts: [['Air pressure', '≈ 0.6% of Earth'], ['Air', '95% carbon dioxide'], ['Gravity', '38% of Earth'], ['Sol', '24 h 39 min']] },
+  mars: { tag: 'The whole planet', title: 'Mars',
+    text: 'Half the width of Earth, with about the same land area as all of Earth’s continents put together. The red is rust: iron in the dust has oxidised. Turn on MOLA elevation in Layers to see the giant volcanoes, the canyon and the low northern plains.',
+    facts: [['Diameter', '6,779 km'], ['Mass', '0.107 Earths'], ['Tallest peak', 'Olympus Mons, ≈ 22 km'], ['Moons', 'Phobos and Deimos']] },
+  moons: { tag: 'Mars and its moons', title: 'Phobos and Deimos',
+    text: 'Two small, lumpy moons, drawn 8 times larger here so you can see them. Phobos races around in under 8 hours, faster than Mars turns, so it rises in the west. It is slowly spiralling inward and will break apart in tens of millions of years.',
+    facts: [['Phobos', '≈ 22 km across'], ['Phobos orbit', '7 h 39 min'], ['Deimos', '≈ 12 km across'], ['Deimos orbit', '30 h 18 min']] },
+  deep: { tag: 'Beyond the moons', title: 'Deep space',
+    text: 'From here Earth is a bright blue-white star near the Sun. Light and radio take between 3 and 22 minutes to cross the gap, so nobody can drive a Mars rover with a joystick from Earth: commands are sent in batches.',
+    facts: [['From the Sun', '≈ 1.52 AU'], ['Year', '687 Earth days'], ['Orbit speed', '≈ 24 km/s'], ['Closest to Earth', '≈ 55 million km']] },
+  rover: { tag: 'Jezero Crater · ground level', title: 'Take the wheel',
+    text: 'You are on the floor of Jezero Crater, near the old river delta. Drive with the joystick or W A S D. New Jezero is to the east. Steep slopes and big rocks will stop you, just like a real rover. The ground is modelled on Jezero’s layout, not mapped metre by metre.',
+    facts: [['Real top speed', '≈ 0.15 km/h'], ['Here', 'sped up 50x'], ['Wheels', '6, rocker-bogie'], ['Power', 'sunlight, here']] },
+};
+function initLadder() {
+  const ladder = $('ladder');
+  const add = (key, name, fn) => { const b = document.createElement('button'); b.className = 'rung'; b.dataset.key = key; b.textContent = name; b.addEventListener('click', fn); ladder.appendChild(b); };
+  [...LEVELS].reverse().forEach(l => add(l.key, l.name, () => { if (state.mode === 'rover') exitRover(() => flyToLevel(l.key)); else flyToLevel(l.key); }));
+  add('rover', 'Drive · Jezero', () => enterRover());
+}
+function setLevel(key) {
+  if (state.level === key) return;
+  state.level = key;
+  document.querySelectorAll('.rung').forEach(r => r.classList.toggle('on', r.dataset.key === key));
+  $('level-name').textContent = key === 'rover' ? 'Rover · Jezero' : LEVELS.find(l => l.key === key).name;
+  showContext(CONTEXT[key]);
+}
+function showContext(c, actions = []) {
+  const card = $('context');
+  card.classList.add('swap');
+  setTimeout(() => {
+    $('ctx-tag').textContent = c.tag; $('ctx-title').textContent = c.title; $('ctx-text').textContent = c.text;
+    $('ctx-facts').innerHTML = (c.facts || []).map(([k, v]) => `<div><div class="fact-k">${k}</div><div class="fact-v">${v}</div></div>`).join('');
+    const act = $('ctx-actions'); act.innerHTML = '';
+    actions.forEach(([label, fn]) => { const b = document.createElement('button'); b.className = 'cta'; b.textContent = label; b.addEventListener('click', fn); act.appendChild(b); });
+    card.classList.remove('swap');
+  }, 240);
+}
+
+/* ================================================================== */
+/*  Camera flights (orbit)                                             */
+/* ================================================================== */
+let flight = null;
+function flyTo(targetPos, duration = 1.8, onDone) {
+  const from = camera.position.clone();
+  flight = { t: 0, duration, fromR: from.length(), toR: targetPos.length(), fromDir: from.normalize(), toDir: targetPos.clone().normalize(), onDone };
+}
+function stepFlight(dt) {
+  if (!flight) return;
+  flight.t = Math.min(1, flight.t + dt / flight.duration);
+  const k = flight.t < 0.5 ? 4 * flight.t ** 3 : 1 - Math.pow(-2 * flight.t + 2, 3) / 2;
+  const dir = flight.fromDir.clone().lerp(flight.toDir, k);
+  if (dir.lengthSq() < 1e-6) dir.copy(flight.toDir);
+  camera.position.copy(dir.normalize().multiplyScalar(Math.exp(THREE.MathUtils.lerp(Math.log(flight.fromR), Math.log(flight.toR), k))));
+  if (flight.t >= 1) { const cb = flight.onDone; flight = null; cb?.(); }
+}
+const placeDir = (lat, lon) => mars.localToWorld(latLonToLocal(lat, lon, 1)).normalize();
+function flyToLevel(key) {
+  const lvl = LEVELS.find(l => l.key === key);
+  const dir = key === 'deep' ? sim.sunScene.clone().negate().add(new THREE.Vector3(0.4, 0.5, 0.2)).normalize() : camera.position.clone().normalize();
+  flyTo(dir.multiplyScalar(state.trueScale && key === 'deep' ? lvl.fly * 2 : lvl.fly), key === 'deep' ? 2.8 : 1.8);
+}
+const VIEWS = [
+  { name: 'Whole Mars, sunlit', desc: 'The full day side, as the Sun sees it.', go: () => toOrbit(() => flyTo(sim.sunScene.clone().multiplyScalar(3.6))) },
+  { name: 'Olympus Mons', desc: 'Over the tallest volcano in the Solar System.', go: () => toOrbit(() => flyTo(placeDir(18.65, -133.8).multiplyScalar(1.6))) },
+  { name: 'Valles Marineris', desc: 'Along the great canyon.', go: () => toOrbit(() => flyTo(placeDir(-12, -62).multiplyScalar(1.9))) },
+  { name: 'Jezero from orbit', desc: 'Perseverance’s crater and the old river delta.', go: () => toOrbit(() => flyTo(placeDir(18.44, 77.45).multiplyScalar(1.3))) },
+  { name: 'Drive the rover', desc: 'Drop to the ground in Jezero and take the wheel.', go: () => enterRover() },
+  { name: 'New Jezero at dusk', desc: 'Arrive at the base as the lights come on.', go: () => enterRover({ dusk: true, nearBase: true }) },
+  { name: 'Mars and its moons', desc: 'Pull back to see Phobos and Deimos circling.', go: () => toOrbit(() => flyToLevel('moons')) },
+  { name: 'Deep space', desc: 'Far enough to see the Sun and Earth as a bright star.', go: () => toOrbit(() => flyToLevel('deep')) },
+];
+const toOrbit = fn => state.mode === 'rover' ? exitRover(fn) : fn();
+
+/* ================================================================== */
+/*  ROVER MODE: terrain, rover, New Jezero                             */
+/* ================================================================== */
+// deterministic 2D noise for the terrain (same function drives mesh and physics)
+const PERM = new Uint8Array(512);
+{ let s = 1234567; const p = [...Array(256).keys()]; for (let i = 255; i > 0; i--) { s = (s * 16807) % 2147483647; const j = s % (i + 1); [p[i], p[j]] = [p[j], p[i]]; } for (let i = 0; i < 512; i++) PERM[i] = p[i & 255]; }
+const grad2 = (h, x, y) => { const g = h & 7; const u = g < 4 ? x : y, v = g < 4 ? y : x; return ((g & 1) ? -u : u) + ((g & 2) ? -2 * v : 2 * v); };
+function noise2(x, y) {
+  const X = Math.floor(x) & 255, Y = Math.floor(y) & 255; x -= Math.floor(x); y -= Math.floor(y);
+  const u = x * x * x * (x * (x * 6 - 15) + 10), v = y * y * y * (y * (y * 6 - 15) + 10);
+  const a = PERM[X] + Y, b = PERM[X + 1] + Y;
+  return THREE.MathUtils.lerp(THREE.MathUtils.lerp(grad2(PERM[a], x, y), grad2(PERM[b], x - 1, y), u), THREE.MathUtils.lerp(grad2(PERM[a + 1], x, y - 1), grad2(PERM[b + 1], x - 1, y - 1), u), v) * 0.35;
+}
+const fbm2 = (x, y, o = 5) => { let s = 0, a = 0.5; for (let i = 0; i < o; i++) { s += a * noise2(x, y); x *= 2.03; y *= 2.03; a *= 0.5; } return s; };
+const ridge2 = (x, y) => { let s = 0, a = 0.5; for (let i = 0; i < 4; i++) { s += a * (1 - Math.abs(noise2(x, y) * 2)); x *= 2.1; y *= 2.1; a *= 0.5; } return s; };
+const smooth = (e0, e1, x) => { const t = THREE.MathUtils.clamp((x - e0) / (e1 - e0), 0, 1); return t * t * (3 - 2 * t); };
+
+const T_SIZE = 1600;            // m, the drivable square
+const BASE_C = { x: 260, z: 30 }, BASE_R = 190, BASE_H = 0;
+const CRATERS = [];
+{ let s = 99; const rnd = () => (s = (s * 16807) % 2147483647) / 2147483647;
+  for (let i = 0; i < 34; i++) { const x = (rnd() - 0.5) * 1500, z = (rnd() - 0.5) * 1500, r = 6 + Math.pow(rnd(), 2.2) * 55; if (Math.hypot(x - BASE_C.x, z - BASE_C.z) > BASE_R + r && Math.hypot(x + 160, z - 60) > 40 + r) CRATERS.push({ x, z, r }); } }
+function groundH(x, z) {
+  let h = 7 * fbm2(x / 260, z / 260) + 2.2 * ridge2(x / 60, z / 60) + 0.5 * fbm2(x / 9, z / 9, 3);
+  // the delta front: a raised fan to the north-west with a steep scarp
+  const front = -330 + 70 * Math.sin(x / 190) + 25 * Math.sin(x / 61);
+  const fan = smooth(60, -25, z - front) * smooth(520, 150, x);
+  h += fan * (34 + 6 * fbm2(x / 90, z / 90));
+  // small impact craters
+  for (const c of CRATERS) {
+    const d = Math.hypot(x - c.x, z - c.z) / c.r;
+    if (d < 1.6) h += (d < 1 ? -0.22 * c.r * (1 - d * d) : 0) + 0.07 * c.r * Math.exp(-Math.pow((d - 1) / 0.22, 2));
+  }
+  // New Jezero sits on a levelled pad
+  const db = Math.hypot(x - BASE_C.x, z - BASE_C.z);
+  const k = smooth(BASE_R + 60, BASE_R - 30, db);
+  return THREE.MathUtils.lerp(h, BASE_H + 0.3 * fbm2(x / 30, z / 30), k);
+}
+
+let rover = null;   // built lazily
+const R = {}; // rover-mode objects
+function buildRoverWorld() {
+  const rs = new THREE.Scene();
+  R.scene = rs;
+  R.camera = new THREE.PerspectiveCamera(55, innerWidth / innerHeight, 0.1, 20000);
+  rs.fog = new THREE.Fog(0xc19072, 250, 2400);
+
+  /* sky */
+  R.skyU = { uSun: { value: new THREE.Vector3(0, 1, 0) }, uDay: { value: 1 } };
+  R.sky = new THREE.Mesh(new THREE.SphereGeometry(9000, 48, 24), new THREE.ShaderMaterial({
+    uniforms: R.skyU, side: THREE.BackSide, depthWrite: false, fog: false,
+    vertexShader: `varying vec3 vD; void main(){ vD = normalize(position); gl_Position = projectionMatrix * modelViewMatrix * vec4(position,1.0); }`,
+    fragmentShader: /* glsl */`
+      uniform vec3 uSun; uniform float uDay; varying vec3 vD;
+      void main(){
+        vec3 d = normalize(vD);
+        float h = clamp(d.y, -0.2, 1.0);
+        float sunUp = uSun.y;
+        float cosT = dot(d, normalize(uSun));
+        // daytime Mars sky: butterscotch near the horizon, darker brown-grey overhead
+        vec3 day = mix(vec3(0.83, 0.62, 0.44), vec3(0.42, 0.30, 0.24), pow(max(h, 0.0), 0.6));
+        // around the Sun, dust scatters blue light forward: Martian sunsets are blue
+        float halo = pow(max(cosT, 0.0), 18.0);
+        vec3 blue = vec3(0.45, 0.62, 0.9);
+        float low = smoothstep(0.35, -0.05, sunUp);
+        vec3 col = day * smoothstep(-0.15, 0.25, sunUp);
+        col += blue * halo * (0.35 + 1.2 * low) * smoothstep(-0.25, 0.0, sunUp);
+        col += vec3(1.0, 0.95, 0.88) * pow(max(cosT, 0.0), 2200.0) * 30.0 * step(-0.02, sunUp);
+        col += vec3(0.015, 0.012, 0.02);
+        gl_FragColor = vec4(col, 1.0);
+        #include <tonemapping_fragment>
+        #include <colorspace_fragment>
+      }`,
+  }));
+  rs.add(R.sky);
+  R.stars = makeStars(isMobile ? 3000 : 5000, 8500);
+  rs.add(R.stars);
+
+  /* lights */
+  R.sun = new THREE.DirectionalLight(0xffe7d0, 3.0);
+  R.sun.castShadow = true;
+  R.sun.shadow.mapSize.set(isMobile ? 1024 : 2048, isMobile ? 1024 : 2048);
+  const sc = R.sun.shadow.camera; sc.left = -60; sc.right = 60; sc.top = 60; sc.bottom = -60; sc.near = 1; sc.far = 600;
+  R.sun.shadow.bias = -0.0005;
+  rs.add(R.sun, R.sun.target);
+  R.hemi = new THREE.HemisphereLight(0xd9a67e, 0x5a3424, 0.7);
+  rs.add(R.hemi);
+
+  /* ground textures: tiling sand with its own normal map */
+  const tileTex = (() => {
+    const N = 512, c = document.createElement('canvas'); c.width = c.height = N;
+    const g = c.getContext('2d'); const img = g.createImageData(N, N);
+    const nc = document.createElement('canvas'); nc.width = nc.height = N;
+    const ng = nc.getContext('2d'); const nimg = ng.createImageData(N, N);
+    const H = new Float32Array(N * N);
+    for (let y = 0; y < N; y++) for (let x = 0; x < N; x++) {
+      const u = x / N * 8, v = y / N * 8;
+      // tileable by sampling a torus-free periodic sum
+      let h = 0, a = 0.5, f = 1;
+      for (let o = 0; o < 5; o++) { h += a * (Math.sin((u * f + noise2(v * f * 0.5, o) * 2) * Math.PI * 2 / 8 * 3) * 0.3 + noise2((u * f) % 8, (v * f) % 8)); a *= 0.5; f *= 2; }
+      const ripple = Math.sin((u + 0.6 * Math.sin(v * 0.8)) * Math.PI * 2 * 1.5) * 0.25;
+      H[y * N + x] = h + ripple + (Math.random() - 0.5) * 0.12;
+    }
+    for (let y = 0; y < N; y++) for (let x = 0; x < N; x++) {
+      const i = y * N + x, hh = H[i];
+      const pebble = Math.random() < 0.012 ? -0.25 : 0;
+      const l = 0.78 + hh * 0.14 + pebble;
+      img.data[i * 4] = 205 * l; img.data[i * 4 + 1] = 130 * l; img.data[i * 4 + 2] = 92 * l; img.data[i * 4 + 3] = 255;
+      const dx = H[y * N + ((x + 1) % N)] - H[y * N + ((x - 1 + N) % N)];
+      const dy = H[((y + 1) % N) * N + x] - H[((y - 1 + N) % N) * N + x];
+      const nx = -dx * 2.2, ny = -dy * 2.2, len = Math.hypot(nx, ny, 1);
+      nimg.data[i * 4] = (nx / len * 0.5 + 0.5) * 255; nimg.data[i * 4 + 1] = (ny / len * 0.5 + 0.5) * 255; nimg.data[i * 4 + 2] = (1 / len * 0.5 + 0.5) * 255; nimg.data[i * 4 + 3] = 255;
+    }
+    g.putImageData(img, 0, 0); ng.putImageData(nimg, 0, 0);
+    const t1 = new THREE.CanvasTexture(c); t1.colorSpace = THREE.SRGBColorSpace;
+    const t2 = new THREE.CanvasTexture(nc);
+    [t1, t2].forEach(t => { t.wrapS = t.wrapT = THREE.RepeatWrapping; t.repeat.set(T_SIZE / 6, T_SIZE / 6); t.anisotropy = maxAniso; });
+    return { map: t1, normal: t2 };
+  })();
+
+  /* terrain mesh */
+  const SEG = isMobile ? 220 : 340;
+  const tg = new THREE.PlaneGeometry(T_SIZE, T_SIZE, SEG, SEG);
+  tg.rotateX(-Math.PI / 2);
+  const p = tg.attributes.position, colors = new Float32Array(p.count * 3);
+  for (let i = 0; i < p.count; i++) {
+    const x = p.getX(i), z = p.getZ(i), h = groundH(x, z);
+    p.setY(i, h);
+    const dark = THREE.MathUtils.clamp(0.5 + fbm2(x / 70 + 20, z / 70) * 1.4, 0, 1);
+    const fanTone = smooth(-260, -340, z) * 0.12;
+    const c = new THREE.Color(0.95 - dark * 0.22 + fanTone, 0.86 - dark * 0.2 + fanTone * 0.5, 0.82 - dark * 0.16);
+    colors.set([c.r, c.g, c.b], i * 3);
+  }
+  tg.setAttribute('color', new THREE.BufferAttribute(colors, 3));
+  tg.computeVertexNormals();
+  R.ground = new THREE.Mesh(tg, new THREE.MeshStandardMaterial({ map: tileTex.map, normalMap: tileTex.normal, normalScale: new THREE.Vector2(1.1, 1.1), vertexColors: true, roughness: 0.96, metalness: 0 }));
+  R.ground.receiveShadow = true;
+  rs.add(R.ground);
+
+  /* distant crater rim: Jezero is 45 km across, its walls show on the horizon */
+  {
+    const segs = 220, g = new THREE.BufferGeometry(), pos = [], idx = [];
+    for (let i = 0; i <= segs; i++) {
+      const a = i / segs * Math.PI * 2, dir = [Math.cos(a), Math.sin(a)];
+      const rIn = 5200 + 600 * noise2(i * 0.07, 3), rOut = rIn + 2600;
+      const hgt = 260 + 260 * Math.max(0, noise2(i * 0.11, 9) + 0.4) + 140 * noise2(i * 0.37, 1) + (Math.cos(a - 2.6) > 0.6 ? -180 : 0);
+      pos.push(dir[0] * 2200, -10, dir[1] * 2200, dir[0] * rIn, hgt * 0.35, dir[1] * rIn, dir[0] * rOut, hgt, dir[1] * rOut);
+    }
+    for (let i = 0; i < segs; i++) { const a = i * 3, b = (i + 1) * 3; idx.push(a, b, a + 1, b, b + 1, a + 1, a + 1, b + 1, a + 2, b + 1, b + 2, a + 2); }
+    g.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3)); g.setIndex(idx); g.computeVertexNormals();
+    const rim = new THREE.Mesh(g, new THREE.MeshStandardMaterial({ color: 0x9a6248, roughness: 1, flatShading: true }));
+    rs.add(rim);
+    // ground apron between the drivable square and the rim
+    const apron = new THREE.Mesh(new THREE.RingGeometry(700, 2300, 64, 1), new THREE.MeshStandardMaterial({ color: 0xa9705a, roughness: 1 }));
+    apron.rotation.x = -Math.PI / 2; apron.position.y = -2; rs.add(apron);
+  }
+
+  /* rocks */
+  {
+    const COUNT = isMobile ? 1800 : 3200;
+    const geo = lumpyRock(1, 2.7, 1);
+    const mat = new THREE.MeshStandardMaterial({ color: 0x6a4434, roughness: 0.95, flatShading: true });
+    R.rocks = new THREE.InstancedMesh(geo, mat, COUNT);
+    R.rocks.castShadow = true; R.rocks.receiveShadow = true;
+    R.rockGrid = new Map();
+    const m = new THREE.Matrix4(), q = new THREE.Quaternion(), e = new THREE.Euler();
+    let s = 4242; const rnd = () => (s = (s * 16807) % 2147483647) / 2147483647;
+    let placed = 0;
+    while (placed < COUNT) {
+      const x = (rnd() - 0.5) * (T_SIZE - 40), z = (rnd() - 0.5) * (T_SIZE - 40);
+      if (Math.hypot(x - BASE_C.x, z - BASE_C.z) < BASE_R + 10) continue;
+      const nearFan = smooth(-200, -320, z);
+      if (rnd() > 0.35 + nearFan * 0.6) continue;
+      const big = rnd() < 0.06;
+      const r = big ? 0.9 + rnd() * 1.6 : 0.12 + Math.pow(rnd(), 2.5) * 0.7;
+      e.set(rnd() * 3, rnd() * 6, rnd() * 3); q.setFromEuler(e);
+      m.compose(new THREE.Vector3(x, groundH(x, z) + r * 0.25, z), q, new THREE.Vector3(r * (0.8 + rnd() * 0.6), r * (0.5 + rnd() * 0.5), r * (0.8 + rnd() * 0.6)));
+      R.rocks.setMatrixAt(placed++, m);
+      if (r > 0.45) { const key = `${Math.floor(x / 8)},${Math.floor(z / 8)}`; if (!R.rockGrid.has(key)) R.rockGrid.set(key, []); R.rockGrid.get(key).push({ x, z, r: r * 1.0 }); }
+    }
+    rs.add(R.rocks);
+  }
+
+  /* the rover: six wheels on rocker-bogie arms, built from simple shapes */
+  {
+    const g = new THREE.Group();
+    const white = new THREE.MeshStandardMaterial({ color: 0xe8e2da, roughness: 0.55, metalness: 0.15 });
+    const gold = new THREE.MeshStandardMaterial({ color: 0xc89b4a, roughness: 0.35, metalness: 0.8 });
+    const dark = new THREE.MeshStandardMaterial({ color: 0x2a2826, roughness: 0.7, metalness: 0.4 });
+    const metal = new THREE.MeshStandardMaterial({ color: 0x9a9690, roughness: 0.4, metalness: 0.85 });
+    const body = new THREE.Group(); g.add(body);
+    const add = (parent, geo, mat, x, y, z, rx = 0, ry = 0, rz = 0) => { const m = new THREE.Mesh(geo, mat); m.position.set(x, y, z); m.rotation.set(rx, ry, rz); m.castShadow = true; m.receiveShadow = true; parent.add(m); return m; };
+    add(body, new THREE.BoxGeometry(2.8, 0.55, 2.0), white, 0, 0.95, 0);
+    add(body, new THREE.BoxGeometry(2.6, 0.08, 2.1), gold, 0, 1.26, 0);
+    // power unit angled off the back
+    add(body, new THREE.CylinderGeometry(0.28, 0.32, 1.1, 16), dark, -1.55, 1.25, 0, 0, 0, 1.05);
+    for (let i = 0; i < 6; i++) add(body, new THREE.BoxGeometry(0.02, 0.5, 0.75), metal, -1.35 - i * 0.07, 1.25 + i * 0.06, 0, 0, 0, 1.05);
+    // mast with camera head
+    add(body, new THREE.CylinderGeometry(0.06, 0.07, 1.25, 10), metal, 0.95, 1.85, 0.62);
+    const head = add(body, new THREE.BoxGeometry(0.32, 0.26, 0.55), white, 1.05, 2.5, 0.62);
+    add(head, new THREE.CylinderGeometry(0.06, 0.06, 0.04, 12), dark, 0.17, 0, 0.16, 0, 0, Math.PI / 2);
+    add(head, new THREE.CylinderGeometry(0.06, 0.06, 0.04, 12), dark, 0.17, 0, -0.16, 0, 0, Math.PI / 2);
+    add(head, new THREE.CylinderGeometry(0.09, 0.09, 0.05, 14), dark, 0.17, 0.02, 0, 0, 0, Math.PI / 2);
+    // high-gain antenna
+    add(body, new THREE.CylinderGeometry(0.3, 0.3, 0.05, 6), white, -0.3, 1.5, -0.65, 0.5, 0, 0);
+    // robotic arm folded at the front
+    add(body, new THREE.BoxGeometry(0.9, 0.09, 0.09), metal, 1.55, 0.95, -0.4, 0, 0.4, 0);
+    add(body, new THREE.BoxGeometry(0.3, 0.3, 0.3), dark, 1.92, 0.95, -0.62);
+    // headlights
+    R.headMat = new THREE.MeshBasicMaterial({ color: 0x332a20 });
+    add(body, new THREE.BoxGeometry(0.05, 0.08, 0.22), R.headMat, 1.42, 1.0, 0.55);
+    add(body, new THREE.BoxGeometry(0.05, 0.08, 0.22), R.headMat, 1.42, 1.0, -0.55);
+    R.headLight = new THREE.SpotLight(0xfff1dd, 0, 60, 0.6, 0.5, 1.4);
+    R.headLight.position.set(1.4, 1.05, 0); body.add(R.headLight);
+    R.headLight.target.position.set(12, -1, 0); body.add(R.headLight.target);
+    // wheels and arms
+    R.wheels = [];
+    const wheelGeo = new THREE.CylinderGeometry(0.27, 0.27, 0.4, 20); wheelGeo.rotateX(Math.PI / 2);
+    const treadGeo = new THREE.TorusGeometry(0.27, 0.025, 6, 24);
+    [1.15, 0, -1.15].forEach(fx => [1.05, -1.05].forEach(sz => {
+      const w = new THREE.Group(); w.position.set(fx, 0.27, sz);
+      const wm = new THREE.Mesh(wheelGeo, metal); wm.castShadow = true; w.add(wm);
+      const tr = new THREE.Mesh(treadGeo, dark); w.add(tr);
+      g.add(w);
+      const leg = new THREE.Mesh(new THREE.BoxGeometry(0.08, 1, 0.08), metal); leg.castShadow = true; g.add(leg);
+      R.wheels.push({ fx, sz, g: w, spin: wm, leg, y: 0.27 });
+    }));
+    rover = g;
+    rs.add(rover);
+  }
+
+  /* tracks: a ring buffer of small dark marks pressed into the sand */
+  {
+    const N = 3000;
+    R.trackMesh = new THREE.InstancedMesh(new THREE.PlaneGeometry(0.5, 0.36).rotateX(-Math.PI / 2), new THREE.MeshBasicMaterial({ color: 0x3a1f15, transparent: true, opacity: 0.32, depthWrite: false, polygonOffset: true, polygonOffsetFactor: -2 }), N);
+    R.trackMesh.count = 0; R.trackIdx = 0; R.trackN = N;
+    rs.add(R.trackMesh);
+  }
+
+  /* dust kicked up by the wheels */
+  {
+    const N = 260, pos = new Float32Array(N * 3), life = new Float32Array(N);
+    const g = new THREE.BufferGeometry(); g.setAttribute('position', new THREE.BufferAttribute(pos, 3));
+    R.dust = new THREE.Points(g, new THREE.PointsMaterial({ color: 0xc89a7a, size: 0.6, map: glowTexture([[0, 'rgba(255,255,255,1)'], [0.5, 'rgba(255,255,255,.35)'], [1, 'rgba(255,255,255,0)']], 64, true), transparent: true, opacity: 0.35, depthWrite: false, blending: THREE.NormalBlending, alphaTest: 0.01 }));
+    R.dust.frustumCulled = false;
+    R.dustVel = new Float32Array(N * 3); R.dustLife = life; R.dustN = N; R.dustI = 0;
+    for (let i = 0; i < N; i++) pos[i * 3 + 1] = -999;
+    rs.add(R.dust);
+  }
+
+  buildBase(rs);
+
+  R.pos = new THREE.Vector3(-150, 0, 70); R.yaw = 0; R.speed = 0; R.odo = 0; R.batt = 0.82;
+  R.camMode = 'chase'; R.lights = false; R.camYaw = 0; R.camPitch = 0.28; R.trackAcc = 0;
+  R.cam = new THREE.Vector3(); R.look = new THREE.Vector3();
+}
+
+/* ---------------- New Jezero ---------------- */
+const BUILDINGS = [];
+const STAGES = ['First landing', 'Outpost', 'Settlement', 'City'];
+function buildBase(rs) {
+  const base = new THREE.Group(); base.position.set(BASE_C.x, BASE_H, BASE_C.z);
+  rs.add(base); R.base = base;
+  const shell = new THREE.MeshStandardMaterial({ color: 0xded4c8, roughness: 0.8 });
+  const panel = new THREE.MeshStandardMaterial({ color: 0x1b2433, roughness: 0.25, metalness: 0.6 });
+  const metal = new THREE.MeshStandardMaterial({ color: 0xa8a29a, roughness: 0.4, metalness: 0.8 });
+  R.windowMat = new THREE.MeshStandardMaterial({ color: 0x1a1410, emissive: 0xffc98a, emissiveIntensity: 0.2 });
+  R.greenMat = new THREE.MeshStandardMaterial({ color: 0x9fd9a8, emissive: 0x4aff8a, emissiveIntensity: 0.35, transparent: true, opacity: 0.6, roughness: 0.15 });
+  R.glassMat = new THREE.MeshStandardMaterial({ color: 0xbfd8e6, transparent: true, opacity: 0.35, roughness: 0.05, metalness: 0.2 });
+  R.beaconMat = new THREE.MeshBasicMaterial({ color: 0xff3b2f });
+  const mesh = (geo, mat, x, y, z, parent) => { const m = new THREE.Mesh(geo, mat); m.position.set(x, y, z); m.castShadow = true; m.receiveShadow = true; parent.add(m); return m; };
+  const building = (stage, name, x, z, info, make) => {
+    const g = new THREE.Group(); g.position.set(x, 0, z); base.add(g); make(g);
+    const b = { stage, name, g, info, world: new THREE.Vector3(BASE_C.x + x, BASE_H, BASE_C.z + z), grow: 0 };
+    g.scale.set(1, 0.001, 1); g.visible = false;
+    BUILDINGS.push(b); return b;
+  };
+  const dome = (g, r, x = 0, z = 0, windows = true) => {
+    mesh(new THREE.SphereGeometry(r, 40, 20, 0, Math.PI * 2, 0, Math.PI / 2), shell, x, 0, z, g);
+    if (windows) for (let i = 0; i < 10; i++) { const a = i / 10 * Math.PI * 2; const w = mesh(new THREE.BoxGeometry(0.2, r * 0.12, r * 0.28), R.windowMat, x + Math.cos(a) * r * 0.86, r * 0.42, z + Math.sin(a) * r * 0.86, g); w.rotation.y = -a; w.rotation.z = 0.5; }
+    mesh(new THREE.CylinderGeometry(r * 1.02, r * 1.05, 0.6, 40), metal, x, 0.3, z, g);
+  };
+  const tunnel = (g, x1, z1, x2, z2) => { const len = Math.hypot(x2 - x1, z2 - z1); const t = mesh(new THREE.CylinderGeometry(1.4, 1.4, len, 14, 1, false, 0, Math.PI), shell, (x1 + x2) / 2, 0, (z1 + z2) / 2, g); t.rotation.set(Math.PI / 2, 0, 0); t.rotation.y = 0; t.lookAt(new THREE.Vector3(x2, 0, z2).add(g.position).add(base.position)); t.rotateX(Math.PI / 2); };
+  const solarRow = (g, x, z, rows, cols) => { for (let r = 0; r < rows; r++) for (let c = 0; c < cols; c++) { const p = mesh(new THREE.BoxGeometry(3.2, 0.08, 1.8), panel, x + c * 3.6, 1.1, z + r * 3.2, g); p.rotation.x = -0.35; mesh(new THREE.CylinderGeometry(0.05, 0.05, 1.1, 6), metal, x + c * 3.6, 0.55, z + r * 3.2, g); } };
+  const greenhouse = (g, len, x = 0, z = 0) => {
+    const arch = mesh(new THREE.CylinderGeometry(4, 4, len, 24, 1, true, 0, Math.PI), R.greenMat, x, 0, z, g); arch.rotation.z = Math.PI / 2; arch.rotation.y = Math.PI / 2;
+    for (let i = 0; i < 5; i++) mesh(new THREE.BoxGeometry(len * 0.9, 0.5 + i * 0, 0.5), new THREE.MeshStandardMaterial({ color: 0x2f7a3a, emissive: 0x1f6a2a, emissiveIntensity: 0.4 }), x, 0.4, z - 2.4 + i * 1.2, g).rotation.y = Math.PI / 2;
+  };
+  const lander = (g, x, z, s = 1) => {
+    mesh(new THREE.CylinderGeometry(4.5 * s, 4.5 * s, 34 * s, 28), new THREE.MeshStandardMaterial({ color: 0xcfd3d6, roughness: 0.35, metalness: 0.7 }), x, 17 * s + 1.5, z, g);
+    mesh(new THREE.ConeGeometry(4.5 * s, 12 * s, 28), new THREE.MeshStandardMaterial({ color: 0xcfd3d6, roughness: 0.35, metalness: 0.7 }), x, 40 * s + 1.5, z, g);
+    for (let i = 0; i < 4; i++) { const a = i / 4 * Math.PI * 2 + 0.4; const l = mesh(new THREE.BoxGeometry(0.5, 6 * s, 0.5), metal, x + Math.cos(a) * 5 * s, 2.5 * s, z + Math.sin(a) * 5 * s, g); l.rotation.z = Math.cos(a) * 0.35; l.rotation.x = -Math.sin(a) * 0.35; }
+  };
+  const pad = (g, r) => { mesh(new THREE.CylinderGeometry(r, r, 0.3, 48), new THREE.MeshStandardMaterial({ color: 0x5b4c44, roughness: 0.9 }), 0, 0.15, 0, g); for (let i = 0; i < 8; i++) { const a = i / 8 * Math.PI * 2; mesh(new THREE.BoxGeometry(0.6, 0.12, 0.6), R.windowMat, Math.cos(a) * (r - 1), 0.36, Math.sin(a) * (r - 1), g); } };
+
+  building(1, 'Landing pad one', -95, -55, 'Where the first crews and supply ships come down. Landing on a hard pad stops the rocket blast from sandblasting everything nearby with dust.', g => { pad(g, 16); lander(g, 0, 0, 0.75); });
+  building(1, 'First habitat', -40, -10, 'The first home: a pressurised shell with radiation shielding made from local regolith piled on top. Mars has no global magnetic field, so walls and roofs do the job Earth’s atmosphere does for us.', g => dome(g, 9));
+  building(1, 'Solar field', -40, 45, 'Mars gets less than half the sunlight Earth does, and dust storms can dim it for weeks, so a real base would pair solar with a steady power source. Rovers like this one run on sunlight in this sim.', g => solarRow(g, -16, -6, 4, 9));
+  building(2, 'Greenhouses', 25, -45, 'Food grown under glass, in soil made from Martian regolith once its toxic perchlorates are washed out. The plants also turn carbon dioxide back into oxygen.', g => { greenhouse(g, 34, 0, 0); greenhouse(g, 34, 0, 11); });
+  building(2, 'Comms tower', -70, 30, 'Messages to Earth take 3 to 22 minutes one way, so the tower talks to orbiting relays, and the town has to make its own decisions in real time.', g => {
+    mesh(new THREE.CylinderGeometry(0.4, 0.9, 26, 6), metal, 0, 13, 0, g);
+    const dish = mesh(new THREE.SphereGeometry(3, 24, 8, 0, Math.PI * 2, 0, 0.9), shell, 0, 22, 2.2, g); dish.rotation.x = -1.1;
+    mesh(new THREE.SphereGeometry(0.35, 10, 8), R.beaconMat, 0, 26.4, 0, g);
+  });
+  building(2, 'Habitat ring', 10, 25, 'Three homes joined by covered walkways, so nobody has to suit up to visit a neighbour.', g => { dome(g, 8, 0, 0); dome(g, 7, 22, -6); dome(g, 7, 18, 18); });
+  building(3, 'Town hall dome', 70, 0, 'The big shared dome: a park, a kitchen, a school and a place to look at the sky. Thick ice in the roof lets in light and blocks radiation.', g => { dome(g, 22, 0, 0); mesh(new THREE.SphereGeometry(20.5, 40, 16, 0, Math.PI * 2, 0, Math.PI / 2.6), R.glassMat, 0, 1.2, 0, g); });
+  building(3, 'Ice mine', 120, -85, 'Water is the most precious thing on Mars. Ice under the ground near Jezero would be dug up, melted and cleaned for drinking, farming and splitting into hydrogen and oxygen.', g => {
+    mesh(new THREE.BoxGeometry(14, 6, 10), shell, 0, 3, 0, g);
+    mesh(new THREE.CylinderGeometry(1.2, 1.6, 22, 8), metal, 8, 11, 0, g);
+    mesh(new THREE.BoxGeometry(5, 1, 5), metal, 8, 22, 0, g);
+  });
+  building(3, 'Oxygen plant', 95, 55, 'Pulls carbon dioxide from the air and splits it into oxygen, scaled up from MOXIE, the experiment on Perseverance that made oxygen on Mars 16 times between 2021 and 2023.', g => {
+    mesh(new THREE.BoxGeometry(16, 7, 9), shell, 0, 3.5, 0, g);
+    for (let i = 0; i < 3; i++) mesh(new THREE.CylinderGeometry(1.6, 1.6, 10, 16), metal, -5 + i * 5, 5, 6.5, g);
+  });
+  building(3, 'Power plant', -110, 85, 'A small fission power unit that runs day and night, through dust storms too. The fins radiate waste heat into the cold air.', g => {
+    mesh(new THREE.CylinderGeometry(3.5, 3.5, 9, 24), shell, 0, 4.5, 0, g);
+    for (let i = 0; i < 8; i++) { const a = i / 8 * Math.PI * 2; const f = mesh(new THREE.BoxGeometry(0.15, 7, 5), metal, Math.cos(a) * 6, 4.5, Math.sin(a) * 6, g); f.rotation.y = -a; }
+  });
+  building(3, 'Rover garage', -10, 80, 'Where rovers like yours are charged, repaired and dusted off. Fine Martian dust gets into every joint.', g => {
+    const h = mesh(new THREE.CylinderGeometry(9, 9, 26, 24, 1, false, 0, Math.PI), shell, 0, 0, 0, g); h.rotation.z = Math.PI / 2; h.rotation.y = Math.PI / 2;
+    mesh(new THREE.BoxGeometry(0.4, 7, 12), R.windowMat, 13, 3.5, 0, g);
+  });
+  building(4, 'Spire', 40, -95, 'A tall tower of homes and labs, built with walls of local basalt. In this vision it is the first thing new arrivals see from orbit.', g => {
+    mesh(new THREE.CylinderGeometry(5, 9, 70, 8), shell, 0, 35, 0, g);
+    for (let i = 0; i < 12; i++) mesh(new THREE.BoxGeometry(11.5 - i * 0.3, 0.6, 11.5 - i * 0.3), R.windowMat, 0, 6 + i * 5.2, 0, g).rotation.y = i * 0.2;
+    mesh(new THREE.SphereGeometry(0.6, 10, 8), R.beaconMat, 0, 71, 0, g);
+  });
+  building(4, 'Landing pad two', 135, 110, 'A second pad for the busy years, when ships arrive every launch window, about once every 26 months.', g => { pad(g, 18); lander(g, 0, 0, 0.85); });
+  building(4, 'New homes', -110, -10, 'More families, more domes. Each dome is a neighbourhood with its own garden.', g => { dome(g, 10, 0, -10); dome(g, 9, -6, 16); dome(g, 8, 18, 24); });
+  building(4, 'Great greenhouse', 150, 0, 'A farm the size of a football field, growing wheat, potatoes, beans and fruit for the whole town.', g => { greenhouse(g, 60, 0, 0); greenhouse(g, 60, 0, 11); greenhouse(g, 60, 0, 22); });
+
+  // tunnels between neighbouring buildings (city stage)
+  // drones that circle the town
+  R.drones = [];
+  for (let i = 0; i < 5; i++) {
+    const d = new THREE.Group();
+    const b = new THREE.Mesh(new THREE.BoxGeometry(1.2, 0.3, 1.2), metal); d.add(b);
+    const l = new THREE.Mesh(new THREE.SphereGeometry(0.18, 8, 6), new THREE.MeshBasicMaterial({ color: 0x9ddcff })); l.position.y = -0.2; d.add(l);
+    base.add(d); R.drones.push({ g: d, r: 60 + i * 28, h: 18 + i * 6, s: 0.12 + i * 0.03, p: i * 1.3 });
+  }
+  // a shuttle that lands and leaves
+  R.shuttle = new THREE.Group();
+  const sb = new THREE.Mesh(new THREE.CylinderGeometry(2.6, 2.6, 18, 20), new THREE.MeshStandardMaterial({ color: 0xd9dcdf, metalness: 0.7, roughness: 0.3 })); sb.position.y = 9; R.shuttle.add(sb);
+  const sc = new THREE.Mesh(new THREE.ConeGeometry(2.6, 7, 20), sb.material); sc.position.y = 21.5; R.shuttle.add(sc);
+  R.flame = new THREE.Sprite(new THREE.SpriteMaterial({ map: glowTexture([[0, 'rgba(255,240,220,1)'], [0.2, 'rgba(255,170,90,.7)'], [1, 'rgba(255,100,40,0)']]), blending: THREE.AdditiveBlending, depthWrite: false, transparent: true }));
+  R.flame.scale.set(4, 8, 1); R.flame.position.y = -3; R.shuttle.add(R.flame);
+  R.shuttle.position.set(135, 0, 110); base.add(R.shuttle);
+  // a warm glow light at the centre, for dusk
+  R.baseLight = new THREE.PointLight(0xffc98a, 0, 260, 1.6); R.baseLight.position.set(20, 30, 0); base.add(R.baseLight);
+
+  BUILDINGS.forEach(b => { b.label = addLabel(b.name, 'building', () => showBuilding(b)); });
+  R.stage = 4;
+  setBaseStage(4, true);
+}
+function setBaseStage(n, instant = false) {
+  R.stage = n;
+  BUILDINGS.forEach(b => { b.target = b.stage <= n ? 1 : 0; if (instant) { b.grow = b.target; applyGrow(b); } });
+}
+function applyGrow(b) {
+  const k = b.grow;
+  b.g.visible = k > 0.002;
+  const e = 1 - Math.pow(1 - k, 3);
+  b.g.scale.set(1, Math.max(0.001, e), 1);
+}
+let manifestTimer = null;
+function manifest() {
+  clearTimeout(manifestTimer);
+  setBaseStage(0, true);
+  const step = i => {
+    if (i >= STAGES.length) { toast('New Jezero · manifested'); return; }
+    setBaseStage(i + 1);
+    toast(`${STAGES[i]}`);
+    manifestTimer = setTimeout(() => step(i + 1), 3200);
+  };
+  manifestTimer = setTimeout(() => step(0), 500);
+}
+function showBuilding(b) {
+  showContext({ tag: `New Jezero · ${STAGES[b.stage - 1]} · a vision`, title: b.name, text: b.info, facts: [] },
+    [['Manifest the town', () => manifest()]]);
+}
+
+/* ---------------- enter / exit ---------------- */
+function enterRover(opts = {}) {
+  closeSheet();
+  if (state.mode === 'rover') { if (opts.dusk) setDusk(); if (opts.nearBase) placeRover(BASE_C.x - BASE_R - 25, BASE_C.z + 10, 0); return; }
+  const go = () => {
+    $('fader').classList.add('on');
+    setTimeout(() => {
+      if (!R.scene) buildRoverWorld();
+      state.mode = 'rover';
+      document.body.classList.add('rover-mode');
+      renderPass.scene = R.scene; renderPass.camera = R.camera;
+      bloom.strength = 0.35;
+      SITES.forEach(s => placeLabel(s.label, tmpA, false)); MOONS.forEach(m => placeLabel(m.label, tmpA, false));
+      placeLabel(sunLabel, tmpA, false); placeLabel(earthLabel, tmpA, false);
+      if (opts.nearBase) placeRover(BASE_C.x - BASE_R - 25, BASE_C.z + 10, 0); else placeRover(-150, 70, 0.05);
+      if (opts.dusk) setDusk();
+      state.level = null; setLevel('rover');
+      updateRoverSky();
+      if (R.sunDir.y < 0.05) setTimeout(() => showContext({ ...CONTEXT.rover, tag: 'Jezero Crater · it\u2019s night here right now', text: `It is ${hhmm(R.lst)} at Jezero, so the Sun is down. Your headlights are on. Drive by starlight, or skip ahead to the Martian morning.` }, [['Skip to daylight', () => setTimeOfDay(9.5)]]), 300);
+      $('probe').classList.remove('on');
+      $('hint').textContent = isMobile ? 'Use the joystick to drive · drag to look around' : 'W A S D or arrows to drive · drag to look around';
+      $('hint').classList.remove('gone');
+      setTimeout(() => $('hint').classList.add('gone'), 6000);
+      $('fader').classList.remove('on');
+      if (audio.tracks.motors === undefined && audio.ctx) setTrack('motors', true);
+    }, 750);
+  };
+  flyTo(placeDir(JEZERO.lat, JEZERO.lon).multiplyScalar(1.25), 1.6, go);
+}
+function exitRover(after) {
+  $('fader').classList.add('on');
+  setTimeout(() => {
+    state.mode = 'orbit';
+    document.body.classList.remove('rover-mode');
+    $('context').classList.remove('quiet');
+    renderPass.scene = scene; renderPass.camera = camera;
+    bloom.strength = 0.45;
+    BUILDINGS.forEach(b => placeLabel(b.label, tmpA, false));
+    camera.position.copy(placeDir(JEZERO.lat, JEZERO.lon).multiplyScalar(1.3));
+    state.level = null;
+    $('fader').classList.remove('on');
+    if (audio.tracks.motors) setTrack('motors', false);
+    after?.();
+  }, 700);
+}
+function placeRover(x, z, yaw) { R.pos.set(x, groundH(x, z), z); R.yaw = yaw; R.speed = 0; R.cam.set(x - 10, groundH(x, z) + 5, z); R.camYaw = 0; }
+function setTimeOfDay(target, msg) {
+  // move the clock forward to a local solar time at Jezero
+  let dh = target - ltstAt(JEZERO.lon); if (dh < 0) dh += 24;
+  state.simMs += dh * 3600e3 * 1.0274912517; updateSim();
+  if (R.scene) updateRoverSky();
+  toast(msg || `Jezero · ${hhmm(target)} local time`);
+  if (state.mode === 'rover') { state.level = null; setLevel('rover'); }
+}
+const setDusk = () => setTimeOfDay(18.35, 'Dusk at Jezero');
+
+/* ---------------- driving input ---------------- */
+const keys = {};
+addEventListener('keydown', e => { if (state.mode !== 'rover') return; keys[e.key.toLowerCase()] = true; if (['arrowup', 'arrowdown', 'arrowleft', 'arrowright', ' '].includes(e.key.toLowerCase())) e.preventDefault(); });
+addEventListener('keyup', e => { keys[e.key.toLowerCase()] = false; });
+const stick = { x: 0, y: 0, id: null };
+{
+  const el = $('stick'), knob = $('knob');
+  const move = e => {
+    const r = el.getBoundingClientRect(), cx = r.left + r.width / 2, cy = r.top + r.height / 2;
+    let dx = e.clientX - cx, dy = e.clientY - cy; const max = r.width / 2 - 20, len = Math.hypot(dx, dy);
+    if (len > max) { dx *= max / len; dy *= max / len; }
+    stick.x = dx / max; stick.y = -dy / max;
+    knob.style.transform = `translate(${dx}px, ${dy}px)`;
+  };
+  el.addEventListener('pointerdown', e => { stick.id = e.pointerId; el.setPointerCapture(e.pointerId); el.classList.add('active'); move(e); ensureAudio(); if (!audio.tracks.motors) setTrack('motors', true); });
+  el.addEventListener('pointermove', e => { if (e.pointerId === stick.id) move(e); });
+  const end = e => { if (e.pointerId !== stick.id) return; stick.id = null; stick.x = stick.y = 0; knob.style.transform = 'translate(0,0)'; el.classList.remove('active'); };
+  el.addEventListener('pointerup', end); el.addEventListener('pointercancel', end);
+}
+// drag to look around in rover mode
+{
+  let drag = null;
+  renderer.domElement.addEventListener('pointerdown', e => { if (state.mode === 'rover') drag = { x: e.clientX, y: e.clientY, yaw: R.camYaw, pitch: R.camPitch }; });
+  addEventListener('pointermove', e => { if (!drag) return; R.camYaw = drag.yaw - (e.clientX - drag.x) * 0.006; R.camPitch = THREE.MathUtils.clamp(drag.pitch + (e.clientY - drag.y) * 0.004, -0.15, 1.1); });
+  addEventListener('pointerup', () => { drag = null; });
+}
+$('btn-cam').addEventListener('click', () => { R.camMode = R.camMode === 'chase' ? 'driver' : 'chase'; $('btn-cam').textContent = R.camMode === 'chase' ? 'Driver view' : 'Chase view'; R.camYaw = 0; });
+$('btn-lights').addEventListener('click', () => { R.lights = !R.lights; $('btn-lights').classList.toggle('on', R.lights); });
+$('btn-manifest').addEventListener('click', () => { manifest(); });
+$('btn-exit').addEventListener('click', () => exitRover(() => flyToLevel('mars')));
+
+const rockHit = (x, z, pad) => {
+  const gx = Math.floor(x / 8), gz = Math.floor(z / 8);
+  for (let i = -1; i <= 1; i++) for (let j = -1; j <= 1; j++) {
+    const list = R.rockGrid.get(`${gx + i},${gz + j}`); if (!list) continue;
+    for (const r of list) if (Math.hypot(x - r.x, z - r.z) < r.r + pad) return r;
+  }
+  return null;
+};
+const buildingHit = (x, z) => {
+  for (const b of BUILDINGS) if (b.grow > 0.5 && Math.hypot(x - b.world.x, z - b.world.z) < (b.name.includes('pad') ? 0 : b.name.includes('Town') ? 24 : b.name.includes('Great') ? 33 : b.name.includes('Solar') ? 0 : 13)) return b;
+  return null;
+};
+let blockedToastAt = 0;
+const fwd = new THREE.Vector3(), side = new THREE.Vector3();
+function stepRover(dt, now) {
+  const throttle = THREE.MathUtils.clamp((keys.w || keys.arrowup ? 1 : 0) - (keys.s || keys.arrowdown ? 1 : 0) + stick.y, -1, 1);
+  const steer = THREE.MathUtils.clamp((keys.a || keys.arrowleft ? 1 : 0) - (keys.d || keys.arrowright ? 1 : 0) - stick.x, -1, 1);
+  const MAX = 7.5;   // m/s: the real rover is about 50 times slower
+  const target = throttle * MAX * (throttle < 0 ? 0.5 : 1) * (R.batt > 0.02 ? 1 : 0.15);
+  R.speed += (target - R.speed) * (1 - Math.exp(-dt * 1.6));
+  R.yaw += steer * dt * (0.9 + 0.15 * Math.abs(R.speed)) * (R.speed < -0.1 ? -1 : 1) * (Math.abs(R.speed) > 0.05 || Math.abs(steer) > 0 ? 1 : 0);
+  fwd.set(Math.cos(R.yaw), 0, -Math.sin(R.yaw));
+  const step = R.speed * dt;
+  if (Math.abs(step) > 1e-4) {
+    const nx = R.pos.x + fwd.x * step, nz = R.pos.z + fwd.z * step;
+    const ahead = Math.sign(step) * 1.8;
+    const hx = R.pos.x + fwd.x * ahead, hz = R.pos.z + fwd.z * ahead;
+    const slope = (groundH(hx, hz) - groundH(R.pos.x, R.pos.z)) / Math.abs(ahead);
+    const lim = T_SIZE / 2 - 25;
+    let blocked = null;
+    if (slope > Math.tan(28 * DEG)) blocked = 'Too steep for the wheels';
+    else if (rockHit(hx, hz, 1.2)) blocked = 'A rock is in the way';
+    else if (buildingHit(nx, nz)) blocked = 'You’ve reached a building';
+    else if (Math.abs(nx) > lim || Math.abs(nz) > lim) blocked = 'Edge of the explored area';
+    if (blocked) { R.speed *= -0.15; if (now - blockedToastAt > 2500) { toast(blocked); blockedToastAt = now; } }
+    else { R.pos.x = nx; R.pos.z = nz; R.odo += Math.abs(step); R.trackAcc += Math.abs(step); }
+  }
+  // follow the ground with each wheel
+  side.set(-fwd.z, 0, fwd.x);   // right-hand side
+  const hs = R.wheels.map(w => groundH(R.pos.x + fwd.x * w.fx + side.x * w.sz, R.pos.z + fwd.z * w.fx + side.z * w.sz));
+  const front = (hs[0] + hs[1]) / 2, back = (hs[4] + hs[5]) / 2, right = (hs[0] + hs[2] + hs[4]) / 3, left = (hs[1] + hs[3] + hs[5]) / 3;
+  const pitch = Math.atan2(front - back, 2.3), roll = Math.atan2(right - left, 2.1);
+  const avg = hs.reduce((a, b) => a + b, 0) / 6;
+  R.pos.y = avg;
+  rover.position.set(R.pos.x, avg, R.pos.z);
+  rover.rotation.order = 'YZX';
+  rover.rotation.set(-roll * 0.9, R.yaw, pitch * 0.9);
+  rover.updateMatrixWorld(true);
+  // each wheel drops or lifts to meet the ground; the leg stretches between
+  R.wheels.forEach((w, i) => {
+    const planeY = (w.fx * Math.tan(pitch * 0.9)) - (w.sz * Math.tan(roll * 0.9));
+    const off = THREE.MathUtils.clamp(hs[i] - avg - planeY, -0.35, 0.35);
+    w.g.position.y = 0.27 + off;
+    w.spin.rotation.z -= step / 0.27;
+    w.leg.position.set(w.fx, (0.27 + off + 0.8) / 2, w.sz * 0.97);
+    w.leg.scale.y = Math.max(0.2, 0.8 - (0.27 + off));
+  });
+  // tracks
+  if (state.tracks && R.trackAcc > 0.42) {
+    R.trackAcc = 0;
+    const m = new THREE.Matrix4(), q = new THREE.Quaternion().setFromEuler(new THREE.Euler(0, R.yaw, 0));
+    [1.05, -1.05].forEach(sz => [-1.15].forEach(fx => {
+      const x = R.pos.x + fwd.x * fx + side.x * sz, z = R.pos.z + fwd.z * fx + side.z * sz;
+      m.compose(new THREE.Vector3(x, groundH(x, z) + 0.03, z), q, new THREE.Vector3(1, 1, 1));
+      R.trackMesh.setMatrixAt(R.trackIdx, m);
+      R.trackIdx = (R.trackIdx + 1) % R.trackN; R.trackMesh.count = Math.min(R.trackN, R.trackMesh.count + 1);
+    }));
+    R.trackMesh.instanceMatrix.needsUpdate = true;
+  }
+  R.trackMesh.visible = state.tracks;
+  // dust
+  const dp = R.dust.geometry.attributes.position.array;
+  if (Math.abs(R.speed) > 1) {
+    for (let k = 0; k < 2; k++) {
+      const i = R.dustI = (R.dustI + 1) % R.dustN, w = R.wheels[4 + (k % 2)];
+      const x = R.pos.x + fwd.x * w.fx + side.x * w.sz, z = R.pos.z + fwd.z * w.fx + side.z * w.sz;
+      dp[i * 3] = x; dp[i * 3 + 1] = groundH(x, z) + 0.2; dp[i * 3 + 2] = z;
+      R.dustVel[i * 3] = -fwd.x * R.speed * 0.15 + (Math.random() - 0.5) * 0.6; R.dustVel[i * 3 + 1] = 0.5 + Math.random() * 0.8; R.dustVel[i * 3 + 2] = -fwd.z * R.speed * 0.15 + (Math.random() - 0.5) * 0.6;
+      R.dustLife[i] = 1;
+    }
+  }
+  for (let i = 0; i < R.dustN; i++) {
+    if (R.dustLife[i] <= 0) continue;
+    R.dustLife[i] -= dt * 0.6;
+    dp[i * 3] += R.dustVel[i * 3] * dt; dp[i * 3 + 1] += R.dustVel[i * 3 + 1] * dt; dp[i * 3 + 2] += R.dustVel[i * 3 + 2] * dt;
+    R.dustVel[i * 3 + 1] -= 0.4 * dt;   // Mars gravity, softened by the drag of the air
+    if (R.dustLife[i] <= 0) dp[i * 3 + 1] = -999;
+  }
+  R.dust.geometry.attributes.position.needsUpdate = true;
+  // battery: drains while driving, charges in sunlight
+  const sunUp = Math.max(0, R.sunDir.y);
+  R.batt = THREE.MathUtils.clamp(R.batt - Math.abs(R.speed) * dt * 0.00035 + sunUp * dt * 0.0012, 0, 1);
+}
+
+/* sun and sky in Jezero, from the real geometry */
+function updateRoverSky() {
+  const lst = ltstAt(JEZERO.lon);
+  const H = (lst - 12) * 15, lat = JEZERO.lat, dec = sim.subsolar.lat;
+  const el = Math.asin(sin(lat) * sin(dec) + cos(lat) * cos(dec) * cos(H));
+  const az = Math.atan2(-sin(H) * cos(dec), cos(lat) * sin(dec) - sin(lat) * cos(dec) * cos(H));   // from north, east positive
+  R.sunDir = R.sunDir || new THREE.Vector3();
+  R.sunDir.set(Math.cos(el) * Math.sin(az), Math.sin(el), -Math.cos(el) * Math.cos(az));
+  R.skyU.uSun.value.copy(R.sunDir);
+  const day = THREE.MathUtils.smoothstep(R.sunDir.y, -0.12, 0.2);
+  R.sun.intensity = 3.0 * THREE.MathUtils.smoothstep(R.sunDir.y, -0.02, 0.18);
+  R.sun.color.setRGB(1, 0.9 + 0.1 * day, 0.8 + 0.18 * day);
+  R.hemi.intensity = 0.06 + 0.7 * day;
+  R.sun.position.copy(R.pos).addScaledVector(R.sunDir, 300);
+  R.sun.target.position.copy(R.pos);
+  R.scene.fog.color.setRGB(0.76 * day + 0.03, 0.56 * day + 0.025, 0.44 * day + 0.03);
+  R.stars.material.uniforms.uFade.value = 1 - THREE.MathUtils.smoothstep(R.sunDir.y, -0.15, 0.02);
+  const night = 1 - day;
+  R.windowMat.emissiveIntensity = 0.15 + 1.9 * night;
+  R.greenMat.emissiveIntensity = 0.3 + 1.1 * night;
+  R.baseLight.intensity = 6000 * night;
+  const autoLights = R.lights || night > 0.6;
+  R.headLight.intensity = autoLights ? 220 : 0;
+  R.headMat.color.setHex(autoLights ? 0xfff4e0 : 0x332a20);
+  R.night = night; R.lst = lst; R.sunEl = el / DEG;
+}
+
+function stepBase(dt, nowS) {
+  BUILDINGS.forEach(b => {
+    if (b.grow !== b.target) { b.grow = THREE.MathUtils.clamp(b.grow + Math.sign(b.target - b.grow) * dt / 2.2, 0, 1); applyGrow(b); }
+  });
+  R.base.visible = state.base;
+  R.drones.forEach(d => { const a = nowS * d.s + d.p; d.g.position.set(Math.cos(a) * d.r, d.h + Math.sin(nowS * 0.7 + d.p) * 2, Math.sin(a) * d.r); d.g.visible = R.stage >= 3; });
+  // shuttle: lands, rests, leaves, every 70 s
+  const cyc = nowS % 70; let y;
+  if (cyc < 18) y = 420 * Math.pow(1 - cyc / 18, 2); else if (cyc < 42) y = 0; else if (cyc < 60) y = 420 * Math.pow((cyc - 42) / 18, 2); else y = 900;
+  R.shuttle.position.y = y + 0.3;
+  R.shuttle.visible = R.stage >= 4 && y < 800;
+  R.flame.visible = (cyc < 18 && cyc > 2) || (cyc > 42 && cyc < 60);
+  R.flame.material.opacity = 0.55 + Math.random() * 0.2;
+}
+
+function stepRoverCamera(dt) {
+  fwd.set(Math.cos(R.yaw), 0, -Math.sin(R.yaw));
+  if (R.camMode === 'driver') {
+    const head = new THREE.Vector3(1.25, 2.5, 0.62).applyMatrix4(rover.matrixWorld);
+    R.camera.position.copy(head);
+    const look = new THREE.Vector3(Math.cos(R.yaw + R.camYaw), -R.camPitch * 0.4 + 0.05, -Math.sin(R.yaw + R.camYaw)).multiplyScalar(20).add(head);
+    R.camera.lookAt(look);
+    return;
+  }
+  const yaw = R.yaw + Math.PI + R.camYaw;
+  const dist = 11, h = 2 + Math.sin(R.camPitch) * dist;
+  const want = new THREE.Vector3(R.pos.x + Math.cos(yaw) * dist * Math.cos(R.camPitch), 0, R.pos.z - Math.sin(yaw) * dist * Math.cos(R.camPitch));
+  want.y = Math.max(groundH(want.x, want.z) + 1.2, R.pos.y + h);
+  const k = 1 - Math.exp(-3.2 * Math.min(dt, 0.1));
+  R.cam.lerp(want, k);
+  R.look.lerp(tmpB.set(R.pos.x, R.pos.y + 1.4, R.pos.z), k * 1.5 > 1 ? 1 : k * 1.5);
+  R.camera.position.copy(R.cam);
+  R.camera.lookAt(R.look);
+}
+
+/* ================================================================== */
+/*  Sounds (all made live in the browser, labelled honestly)          */
+/* ================================================================== */
+const audio = { ctx: null, master: null, tracks: {} };
+function ensureAudio() {
+  if (audio.ctx) { if (audio.ctx.state === 'suspended') audio.ctx.resume(); return audio.ctx; }
+  const ctx = new (window.AudioContext || window.webkitAudioContext)();
+  const comp = ctx.createDynamicsCompressor(); comp.threshold.value = -16; comp.ratio.value = 4;
+  const master = ctx.createGain(); master.gain.value = 0.9; master.connect(comp); comp.connect(ctx.destination);
+  audio.ctx = ctx; audio.master = master; return ctx;
+}
+function noiseBuffer(ctx, seconds, brown = false) {
+  const buf = ctx.createBuffer(1, ctx.sampleRate * seconds, ctx.sampleRate), d = buf.getChannelData(0);
+  let last = 0;
+  for (let i = 0; i < d.length; i++) { const w = Math.random() * 2 - 1; if (brown) { last = (last + 0.02 * w) / 1.02; d[i] = last * 3.5; } else d[i] = w; }
+  return buf;
+}
+const TRACKS = {
+  wind: { name: 'Martian wind', badge: 'Recreation',
+    desc: 'Perseverance carried the first working microphones to Mars and recorded the wind at Jezero in 2021. The thin air carries sound poorly, so it is a soft, low rush with gusts. This is a recreation in that spirit, not the recording.',
+    start(ctx, out) {
+      const g = ctx.createGain(); g.gain.value = 0; g.connect(out); g.gain.setTargetAtTime(0.5, ctx.currentTime, 1.5);
+      const src = ctx.createBufferSource(); src.buffer = noiseBuffer(ctx, 6, true); src.loop = true;
+      const lp = ctx.createBiquadFilter(); lp.type = 'lowpass'; lp.frequency.value = 380; lp.Q.value = 0.6;
+      const lfo = ctx.createOscillator(); lfo.frequency.value = 0.09; const lg = ctx.createGain(); lg.gain.value = 220; lfo.connect(lg); lg.connect(lp.frequency);
+      const amp = ctx.createGain(); amp.gain.value = 0.6; const lfo2 = ctx.createOscillator(); lfo2.frequency.value = 0.13; const lg2 = ctx.createGain(); lg2.gain.value = 0.4; lfo2.connect(lg2); lg2.connect(amp.gain);
+      src.connect(lp); lp.connect(amp); amp.connect(g); src.start(); lfo.start(); lfo2.start();
+      return () => { g.gain.setTargetAtTime(0, ctx.currentTime, 0.6); setTimeout(() => { src.stop(); lfo.stop(); lfo2.stop(); }, 2500); };
+    } },
+  laser: { name: 'SuperCam laser zaps', badge: 'Recreation',
+    desc: 'Perseverance’s SuperCam fires a laser at rocks to read what they are made of. Its microphone heard each pulse as a sharp tick, in bursts. This recreates that rhythm.',
+    start(ctx, out) {
+      const g = ctx.createGain(); g.gain.value = 0.5; g.connect(out);
+      let alive = true;
+      const burst = () => {
+        if (!alive) return;
+        const t = ctx.currentTime, n = 20 + Math.floor(Math.random() * 10);
+        for (let i = 0; i < n; i++) {
+          const s = ctx.createBufferSource(); s.buffer = noiseBuffer(ctx, 0.02);
+          const hp = ctx.createBiquadFilter(); hp.type = 'bandpass'; hp.frequency.value = 2400 + Math.random() * 800; hp.Q.value = 1.4;
+          const e = ctx.createGain(); e.gain.setValueAtTime(0.7 - i * 0.015, t + i * 0.1); e.gain.exponentialRampToValueAtTime(0.0001, t + i * 0.1 + 0.03);
+          s.connect(hp); hp.connect(e); e.connect(g); s.start(t + i * 0.1);
+        }
+        setTimeout(burst, n * 100 + 1800 + Math.random() * 2500);
+      };
+      burst();
+      return () => { alive = false; g.gain.setTargetAtTime(0, ctx.currentTime, 0.2); };
+    } },
+  heli: { name: 'Ingenuity’s rotors', badge: 'Recreation',
+    desc: 'When Ingenuity flew, Perseverance’s microphone caught a faint hum from its blades, which spun at about 2,500 rpm. In Mars’s thin air the hum was quiet and low. This recreates it.',
+    start(ctx, out) {
+      const g = ctx.createGain(); g.gain.value = 0; g.connect(out); g.gain.setTargetAtTime(0.16, ctx.currentTime, 1.2);
+      const o = ctx.createOscillator(); o.type = 'sawtooth'; o.frequency.value = 84;
+      const lp = ctx.createBiquadFilter(); lp.type = 'lowpass'; lp.frequency.value = 520;
+      const am = ctx.createGain(); am.gain.value = 0.7; const lfo = ctx.createOscillator(); lfo.frequency.value = 0.25; const lg = ctx.createGain(); lg.gain.value = 0.3; lfo.connect(lg); lg.connect(am.gain);
+      o.connect(lp); lp.connect(am); am.connect(g); o.start(); lfo.start();
+      return () => { g.gain.setTargetAtTime(0, ctx.currentTime, 0.4); setTimeout(() => { o.stop(); lfo.stop(); }, 2000); };
+    } },
+  motors: { name: 'Rover motors', badge: 'Sound design',
+    desc: 'The whine of the wheel motors while you drive. It rises with your speed. It plays automatically when you start driving.',
+    start(ctx, out) {
+      const g = ctx.createGain(); g.gain.value = 0; g.connect(out);
+      const o = ctx.createOscillator(); o.type = 'triangle'; o.frequency.value = 120;
+      const o2 = ctx.createOscillator(); o2.type = 'sine'; o2.frequency.value = 240;
+      const lp = ctx.createBiquadFilter(); lp.type = 'lowpass'; lp.frequency.value = 900;
+      const n = ctx.createBufferSource(); n.buffer = noiseBuffer(ctx, 2, true); n.loop = true; const ng = ctx.createGain(); ng.gain.value = 0.5;
+      o.connect(lp); o2.connect(lp); n.connect(ng); ng.connect(lp); lp.connect(g); o.start(); o2.start(); n.start();
+      audio.motor = { g, o, o2 };
+      return () => { audio.motor = null; g.gain.setTargetAtTime(0, ctx.currentTime, 0.2); setTimeout(() => { o.stop(); o2.stop(); n.stop(); }, 1200); };
+    } },
+  ambient: { name: 'Ambient drift', badge: 'Artistic',
+    desc: 'A slow drone for exploring. Not a recording of anything, just a soundtrack.',
+    start(ctx, out) {
+      const g = ctx.createGain(); g.gain.value = 0; g.connect(out); g.gain.setTargetAtTime(0.07, ctx.currentTime, 2);
+      const lp = ctx.createBiquadFilter(); lp.type = 'lowpass'; lp.frequency.value = 480; lp.Q.value = 4; lp.connect(g);
+      const lfo = ctx.createOscillator(); lfo.frequency.value = 0.05; const lg = ctx.createGain(); lg.gain.value = 240; lfo.connect(lg); lg.connect(lp.frequency); lfo.start();
+      const oscs = [55, 55.4, 82.4, 110, 164.8].map(f => { const o = ctx.createOscillator(); o.type = 'sawtooth'; o.frequency.value = f; o.connect(lp); o.start(); return o; });
+      return () => { g.gain.setTargetAtTime(0, ctx.currentTime, 0.8); setTimeout(() => { oscs.forEach(o => o.stop()); lfo.stop(); }, 3000); };
+    } },
+};
+function setTrack(id, on) {
+  const ctx = ensureAudio(), cur = audio.tracks[id];
+  if (on && !cur) audio.tracks[id] = TRACKS[id].start(ctx, audio.master);
+  if (!on && cur) { cur(); delete audio.tracks[id]; }
+  document.querySelectorAll(`[data-track="${id}"]`).forEach(b => b.classList.toggle('on', !!audio.tracks[id]));
+}
+
+/* ================================================================== */
+/*  Learn and sheets                                                   */
+/* ================================================================== */
+const LEARN = {
+  overview: { name: 'Overview', html: `
+    <h3>The red planet</h3>
+    <p>Mars is the fourth planet from the Sun, about half the width of Earth. It is cold, dry and dusty now, but it was once wetter and warmer, with rivers, lakes and maybe a shallow sea. That is why it is the best place we know of to look for signs of past life beyond Earth.</p>
+    <div class="grid-facts">
+      <div><div class="fact-k">Diameter</div><div class="fact-v">6,779 km</div></div>
+      <div><div class="fact-k">Mass</div><div class="fact-v">0.107 Earths</div></div>
+      <div><div class="fact-k">Gravity</div><div class="fact-v">3.72 m/s² · 38%</div></div>
+      <div><div class="fact-k">Escape velocity</div><div class="fact-v">5.0 km/s</div></div>
+      <div><div class="fact-k">Day (sol)</div><div class="fact-v">24 h 39 min 35 s</div></div>
+      <div><div class="fact-k">Year</div><div class="fact-v">687 Earth days</div></div>
+      <div><div class="fact-k">Axial tilt</div><div class="fact-v">25.2°</div></div>
+      <div><div class="fact-k">Average temperature</div><div class="fact-v">≈ −60 °C</div></div>
+    </div>
+    <h3>Two small moons</h3>
+    <p>Phobos is about 22 km across and Deimos about 12 km. Both are lumpy and dark, and may be captured asteroids or debris from an ancient impact. Phobos orbits so low and so fast that it rises in the west and sets in the east, twice a day.</p>
+  ` },
+  water: { name: 'Water history', html: `
+    <h3>A wetter past</h3>
+    <ol class="timeline">
+      <li><time>≈ 4.5 billion years ago</time>Mars forms along with the other planets.</li>
+      <li><time>≈ 4.1–3.7 billion years ago</time>Giant impacts carve Hellas and other basins. Rivers flow and lakes fill.</li>
+      <li><time>≈ 3.5 billion years ago</time>A river builds a delta into the lake in Jezero Crater, the place Perseverance explores today.</li>
+      <li><time>≈ 3 billion years ago</time>Mars loses most of its magnetic field. The solar wind slowly strips away the air, and the water freezes or escapes to space.</li>
+      <li><time>Today</time>Water survives as ice in the polar caps and under the ground, and as a trace of vapour in the air.</li>
+    </ol>
+    <p>Turn on <b>MOLA elevation</b> in Layers: the blue northern lowlands are smooth and low, and some scientists think an ocean once filled them.</p>
+  ` },
+  orbit: { name: 'Orbit & seasons', html: `
+    <h3>A longer, stretched year</h3>
+    <p>Mars takes 687 Earth days to go around the Sun. Its orbit is more oval than Earth’s, so its distance from the Sun swings between about 206 and 249 million km. The speed at the top of the screen changes through the Martian year because of it.</p>
+    <div class="grid-facts">
+      <div><div class="fact-k">Average distance</div><div class="fact-v">227.9 million km</div></div>
+      <div><div class="fact-k">Closest to the Sun</div><div class="fact-v">≈ 206.6 million km</div></div>
+      <div><div class="fact-k">Farthest</div><div class="fact-v">≈ 249.2 million km</div></div>
+      <div><div class="fact-k">Year in sols</div><div class="fact-v">668.6 sols</div></div>
+    </div>
+    <h3>Seasons and Ls</h3>
+    <p>Mars has seasons like Earth because its axis is tilted by a similar amount. Scientists count the Martian year with an angle called Ls: 0° is the start of northern spring, 90° northern summer, 180° autumn and 270° winter. Because the orbit is stretched, southern summer is short and hot, and it is when the big dust storms usually begin.</p>
+    <h3>Launch windows</h3>
+    <p>Earth and Mars line up for an efficient trip about once every 26 months, when Mars is roughly 44° ahead of Earth in its orbit. The next window shown at the top is worked out from the planets’ real positions.</p>
+  ` },
+  surface: { name: 'Surface & weather', html: `
+    <h3>Biggest of everything</h3>
+    <div class="grid-facts">
+      <div><div class="fact-k">Olympus Mons</div><div class="fact-v">≈ 22 km high</div></div>
+      <div><div class="fact-k">Valles Marineris</div><div class="fact-v">≈ 4,000 km long</div></div>
+      <div><div class="fact-k">Hellas basin</div><div class="fact-v">≈ 7 km deep</div></div>
+      <div><div class="fact-k">Dust storms</div><div class="fact-v">can cover the planet</div></div>
+    </div>
+    <h3>The air</h3>
+    <p>About 95% carbon dioxide, with some nitrogen and argon. Surface pressure is under 1% of Earth’s, so water can’t stay liquid for long on the surface: it boils or freezes. Temperatures swing wildly, from about 20 °C at noon near the equator in summer to below −100 °C at night.</p>
+    <h3>Blue sunsets</h3>
+    <p>By day the Martian sky is butterscotch, because fine dust hangs in the air. At sunset it turns blue around the Sun, the opposite of Earth: the dust grains scatter blue light forward, toward your eyes. Try it in rover mode at 1 hr/s.</p>
+  ` },
+  exploration: { name: 'Exploration', html: `
+    <ol class="timeline">
+      <li><time>1965 · Mariner 4</time>The first close-up photos of Mars: a cratered, Moon-like world.</li>
+      <li><time>1971 · Mariner 9</time>The first spacecraft to orbit another planet. It mapped Olympus Mons and Valles Marineris.</li>
+      <li><time>1971 · Mars 3</time>The first soft landing, by the Soviet Union. It fell silent within seconds.</li>
+      <li><time>1976 · Viking 1 and 2</time>The first long-lived landers, and the first search for life in the soil.</li>
+      <li><time>1997 · Pathfinder</time>Sojourner, the first rover on Mars.</li>
+      <li><time>2004 · Spirit and Opportunity</time>Twin rovers that found clear signs of ancient water. Opportunity drove 45 km.</li>
+      <li><time>2012 · Curiosity</time>A car-sized lab that proved Gale Crater once held a lake that could have supported life.</li>
+      <li><time>2014 · Mangalyaan</time>India’s Mars Orbiter Mission reached orbit on its very first attempt, the first Asian nation to do so, and at a famously low cost.</li>
+      <li><time>2018 · InSight</time>Listened to marsquakes and measured the planet’s core.</li>
+      <li><time>2021 · A busy year</time>The UAE’s Hope and China’s Tianwen-1 reach orbit. Zhurong lands. Perseverance lands in Jezero and Ingenuity makes the first powered flight on another planet.</li>
+    </ol>
+    <h3>Working in orbit</h3>
+    <p>Orbiters such as Mars Reconnaissance Orbiter, MAVEN, Mars Express, Hope and Tianwen-1 map the surface, watch the weather and relay the rovers’ data home.</p>
+  ` },
+  living: { name: 'Living on Mars', html: `
+    <h3>New Jezero is a vision</h3>
+    <p class="note">The town you can drive to is our picture of the future, not a real place or an announced plan. Everything about how it works is based on real ideas being studied today.</p>
+    <p><b>Air.</b> Perseverance’s MOXIE experiment turned Martian carbon dioxide into oxygen 16 times between 2021 and 2023. A full-size version could make air to breathe and fuel for the trip home.</p>
+    <p><b>Water.</b> There is ice under the ground across large parts of Mars. Dig it up, melt it, clean it: drinking water, and hydrogen for fuel.</p>
+    <p><b>Food.</b> Greenhouses under glass or ice, with soil made from regolith once its harmful perchlorates are washed out.</p>
+    <p><b>Shelter.</b> Mars has thin air and no global magnetic field, so radiation is the big danger. Homes would be buried under regolith or roofed with thick ice.</p>
+    <p><b>Power.</b> Solar works but dims in dust storms, so a town would also want a steady source like a small fission reactor.</p>
+    <p>Drive to the base and press <b>Manifest</b> to watch it grow from the first landing to a city.</p>
+  ` },
+};
+function openSheet(kind, tab) {
+  const sheet = $('sheet'), body = $('sheet-body'), tabs = $('tabs');
+  sheet.classList.add('open'); sheet.setAttribute('aria-hidden', 'false');
+  tabs.innerHTML = ''; tabs.style.display = 'none';
+  if (kind === 'learn') {
+    $('sheet-title').textContent = 'Learn';
+    tabs.style.display = '';
+    const show = key => { tabs.querySelectorAll('.chip').forEach(c => c.classList.toggle('on', c.dataset.k === key)); body.innerHTML = LEARN[key].html; body.scrollTop = 0; };
+    Object.entries(LEARN).forEach(([k, v]) => { const b = document.createElement('button'); b.className = 'chip'; b.dataset.k = k; b.textContent = v.name; b.addEventListener('click', () => show(k)); tabs.appendChild(b); });
+    show(tab || 'overview');
+    return;
+  }
+  if (kind === 'views') {
+    $('sheet-title').textContent = 'Views';
+    body.innerHTML = '<div class="layers">' + VIEWS.map((v, i) => `<button class="row-btn" data-view="${i}"><div><strong>${v.name}</strong><span>${v.desc}</span></div><span class="play">Go</span></button>`).join('') + '</div>';
+    body.querySelectorAll('[data-view]').forEach(b => b.addEventListener('click', () => { closeSheet(); VIEWS[+b.dataset.view].go(); }));
+    return;
+  }
+  if (kind === 'layers') {
+    $('sheet-title').textContent = 'Layers';
+    const L = [
+      ['labels', 'Place markers', 'Landing sites in gold, natural wonders in rust, New Jezero in green.'],
+      ['mola', 'MOLA elevation', 'NASA’s laser altimeter map: blue is low, red and white are high.'],
+      ['relief', 'Relief shading', 'Mountains and craters lit by the Sun, from elevation data.'],
+      ['haze', 'Dust haze', 'The thin, dusty air that softens the planet.'],
+      ['moons', 'Phobos and Deimos', 'The two moons and their orbits, drawn 8x larger.'],
+      ['grid', 'Latitude grid', 'Lines every 15°, with the equator and prime meridian.'],
+      ['tracks', 'Rover tracks', 'Wheel marks left in the sand while you drive.'],
+      ['base', 'New Jezero', 'The future town near the delta. A vision, not a real place.'],
+      ['spin', 'Turning view', 'Slowly circles the planet. Pauses while you drag.'],
+      ['trueScale', 'True distances', 'Draws the moons’ orbits and the far view at real scale.'],
+    ];
+    body.innerHTML = '<div class="layers">' + L.map(([k, t, d]) => `<button class="row-btn ${state[k] ? 'on' : ''}" data-layer="${k}"><div><strong>${t}</strong><span>${d}</span></div><span class="switch"></span></button>`).join('') + '</div>';
+    body.querySelectorAll('[data-layer]').forEach(b => b.addEventListener('click', () => {
+      const k = b.dataset.layer; state[k] = !state[k]; b.classList.toggle('on', state[k]);
+      toast(`${b.querySelector('strong').textContent}: ${state[k] ? 'on' : 'off'}`);
+    }));
+    return;
+  }
+  if (kind === 'sound') {
+    $('sheet-title').textContent = 'Sounds of Mars';
+    body.innerHTML = `<p class="note">Mars is one of the few places beyond Earth where we have heard real sounds: Perseverance carried microphones. NASA has published those recordings. The sounds here are recreations made live in your browser, inspired by them, and labelled for what they are.</p>
+      <div class="layers">` + Object.entries(TRACKS).map(([k, t]) => `<button class="row-btn ${audio.tracks[k] ? 'on' : ''}" data-track="${k}"><div><strong>${t.name}</strong><span style="color:var(--accent)">${t.badge}</span><span>${t.desc}</span></div><span class="play">Play</span></button>`).join('') + `</div>
+      <p style="margin-top:16px">Sound travels slower on Mars, about 240 m/s, and high notes fade quickly in the thin carbon dioxide air.</p>`;
+    body.querySelectorAll('[data-track]').forEach(b => b.addEventListener('click', () => setTrack(b.dataset.track, !audio.tracks[b.dataset.track])));
+  }
+}
+function openSite(s) {
+  openSheet('site');
+  $('sheet-title').textContent = { mission: 'Landing site', nature: 'Natural wonder', vision: 'The future' }[s.kind];
+  const lst = ltstAt(s.lon);
+  const p = latLonToLocal(s.lat, s.lon), sb = sim.sunBody;
+  const elev = Math.asin(THREE.MathUtils.clamp(p.dot(sb), -1, 1)) / DEG;
+  $('sheet-body').innerHTML = `<h3>${s.name}</h3><div class="site-meta">${s.meta}</div><p>${s.text}</p>
+    <div class="grid-facts">
+      <div><div class="fact-k">Latitude</div><div class="fact-v">${fmtLat(s.lat)}</div></div>
+      <div><div class="fact-k">Longitude</div><div class="fact-v">${fmtLon(s.lon)}</div></div>
+      <div><div class="fact-k">Local solar time</div><div class="fact-v">${hhmm(lst)}</div></div>
+      <div><div class="fact-k">Sun now</div><div class="fact-v">${elev > 0 ? `Day · ${elev.toFixed(0)}° up` : elev > -6 ? 'Twilight' : 'Night'}</div></div>
+    </div>
+    ${s.drive ? '<button class="cta" id="site-drive">Drive here</button>' : ''}<button class="cta ghost" id="site-go">Fly over it</button>`;
+  $('site-go').addEventListener('click', () => { closeSheet(); toOrbit(() => flyTo(placeDir(s.lat, s.lon).multiplyScalar(1.32))); });
+  $('site-drive')?.addEventListener('click', () => enterRover({ nearBase: s.id === 'newjezero' }));
+}
+function closeSheet() { $('sheet').classList.remove('open'); $('sheet').setAttribute('aria-hidden', 'true'); }
+
+/* ================================================================== */
+/*  UI wiring                                                          */
+/* ================================================================== */
+let toastTimer;
+function toast(msg) { const t = $('toast'); t.textContent = msg; t.classList.add('show'); clearTimeout(toastTimer); toastTimer = setTimeout(() => t.classList.remove('show'), 2200); }
+document.querySelectorAll('[data-rate]').forEach(b => b.addEventListener('click', () => {
+  state.rate = Number(b.dataset.rate);
+  document.querySelectorAll('[data-rate]').forEach(x => x.classList.toggle('on', x === b));
+}));
+$('btn-now').addEventListener('click', () => {
+  state.simMs = Date.now(); state.rate = 1;
+  document.querySelectorAll('[data-rate]').forEach(x => x.classList.toggle('on', x.dataset.rate === '1'));
+  toast('Back to the live sky');
+});
+document.querySelectorAll('[data-sheet]').forEach(b => b.addEventListener('click', () => openSheet(b.dataset.sheet)));
+$('sheet-close').addEventListener('click', closeSheet);
+$('ctx-more').addEventListener('click', () => {
+  const card = $('context');
+  if (isMobile && !card.classList.contains('expanded')) { card.classList.add('expanded'); $('ctx-more').textContent = 'Open the full guide ›'; return; }
+  card.classList.remove('expanded'); $('ctx-more').textContent = 'Read more ›';
+  openSheet('learn', { orbit: 'surface', mars: 'overview', moons: 'overview', deep: 'orbit', rover: 'living' }[state.level] || 'overview');
+});
+$('tele-toggle').addEventListener('click', () => { const t = $('tele'); t.classList.toggle('expanded'); $('tele-toggle').textContent = t.classList.contains('expanded') ? 'Less ▴' : 'More ▾'; });
+addEventListener('keydown', e => { if (e.key === 'Escape') closeSheet(); });
+renderer.domElement.addEventListener('pointerdown', () => { if (state.mode === 'orbit') flight = null; lastTouch = performance.now(); $('hint').classList.add('gone'); });
+renderer.domElement.addEventListener('pointermove', e => { if (e.buttons) lastTouch = performance.now(); });
+renderer.domElement.addEventListener('wheel', () => { flight = null; lastTouch = performance.now(); }, { passive: true });
+addEventListener('resize', () => {
+  camera.aspect = innerWidth / innerHeight; camera.updateProjectionMatrix();
+  if (R.camera) { R.camera.aspect = innerWidth / innerHeight; R.camera.updateProjectionMatrix(); }
+  renderer.setSize(innerWidth, innerHeight); composer.setSize(innerWidth, innerHeight);
+  bloom.resolution.set(innerWidth / 2, innerHeight / 2);
+});
+
+/* ================================================================== */
+/*  Frame                                                              */
+/* ================================================================== */
+const fmtAlt = km => km < 10000 ? `${fmt(km)} km` : km < 1e6 ? `${fmt(km / 1000, 0)}k km` : `${fmt(km / 1e6, 2)}M km`;
+const dateFmt = new Intl.DateTimeFormat(undefined, { year: 'numeric', month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' });
+const monthFmt = new Intl.DateTimeFormat(undefined, { month: 'short', year: 'numeric' });
+let windowCache = { at: -1e15, t: null }, lastTele = 0;
+const raycaster = new THREE.Raycaster(), centerNDC = new THREE.Vector2(), unitSphere = new THREE.Sphere(new THREE.Vector3(), 1);
+const compass = d => ['N', 'NE', 'E', 'SE', 'S', 'SW', 'W', 'NW'][Math.round(norm360(d) / 45) % 8];
+
+function frame(now, dt) {
+  state.simMs += dt * 1000 * state.rate;
+  updateSim();
+  const m = sim.m24;
+
+  if (state.mode === 'orbit') {
+    const camDist = camera.position.length(), altKm = (camDist - 1) * R_MARS;
+    marsUniforms.uSun.value.copy(sim.sunBody);
+    marsUniforms.uCam.value.copy(camera.position).applyQuaternion(invQ);
+    marsUniforms.uMolaOn.value += ((state.mola ? 1 : 0) - marsUniforms.uMolaOn.value) * 0.12;
+    marsUniforms.uRelief.value = state.relief ? 1 : 0;
+    marsUniforms.uHaze.value = state.haze ? 0.35 : 0;
+    atmo.visible = state.haze;
+    atmoUniforms.uSun.value.copy(sim.sunScene);
+    gridRoot.visible = state.grid;
+    sunRoot.position.copy(sim.sunScene).multiplyScalar(SUN_VIS_DIST);
+    const sunR = SUN_VIS_DIST * Math.tan(0.2666 * DEG / (sim.rS / AU));
+    sunBall.scale.setScalar(sunR); sunGlow.scale.setScalar(sunR * 9);
+    earthDot.position.copy(sim.earthScene).multiplyScalar(5000);
+    skyRoot.position.copy(camera.position);
+    moonLight.position.copy(sim.sunScene).multiplyScalar(50);
+    const days = state.simMs / 86400000;
+    MOONS.forEach(mo => {
+      const a = (days / mo.period) * Math.PI * 2 + mo.phase0;
+      mo.mesh.position.set(Math.cos(a) * mo.a, 0, -Math.sin(a) * mo.a);
+      mo.mesh.rotation.y = a;
+      mo.mesh.visible = mo.orbit.visible = state.moons;
+      mo.orbit.material.opacity = THREE.MathUtils.clamp((camDist - 7) / 6, 0, 0.3);
+      mo.orbit.visible = state.moons && camDist > 7;
+    });
+
+    stepFlight(dt);
+    controls.autoRotate = state.spin && !flight && now - lastTouch > 5000;
+    controls.update(dt);
+
+    const lvl = LEVELS.find(l => altKm < l.maxAlt);
+    setLevel(lvl.key);
+    $('alt').textContent = fmtAlt(altKm);
+
+    const near = camDist < 8;
+    SITES.forEach(s => {
+      const wp = mars.localToWorld(tmpA.copy(s.local).multiplyScalar(1.004));
+      const facing = tmpB.copy(wp).normalize().dot(tmpC.copy(camera.position).sub(wp).normalize());
+      placeLabel(s.label, wp, state.labels && near && facing > 0.1 && (s.kind !== 'vision' || camDist < 1.9));
+    });
+    MOONS.forEach(mo => placeLabel(mo.label, mo.mesh.getWorldPosition(tmpA), state.moons && camDist > 3 && camDist < 60));
+    placeLabel(sunLabel, sunRoot.position, true);
+    placeLabel(earthLabel, earthDot.position, camDist > 2);
+
+    // crosshair readout
+    const probe = $('probe');
+    if (altKm < 12000) {
+      raycaster.setFromCamera(centerNDC, camera);
+      const hit = raycaster.ray.intersectSphere(unitSphere, tmpA);
+      if (hit) {
+        const ll = localToLatLon(mars.worldToLocal(hit.clone()));
+        let best = null, bestD = Infinity;
+        SITES.forEach(s => { const d = greatCircleKm(ll, s); if (d < bestD) { bestD = d; best = s; } });
+        const elev = Math.asin(THREE.MathUtils.clamp(latLonToLocal(ll.lat, ll.lon).dot(sim.sunBody), -1, 1)) / DEG;
+        $('probe-text').innerHTML = `${fmtLat(ll.lat)} ${fmtLon(ll.lon)} <span>· ${elev > 0 ? `day, Sun ${elev.toFixed(0)}° up` : elev > -6 ? 'twilight' : 'night'}</span><br><span>local time</span> ${hhmm(ltstAt(ll.lon))}<br><span>${fmt(bestD)} km from</span> ${best.name}`;
+        probe.classList.add('on');
+      } else probe.classList.remove('on');
+    } else probe.classList.remove('on');
+    renderPass.camera = camera;
+  } else {
+    updateRoverSky();
+    stepRover(dt, now);
+    stepBase(dt, now / 1000);
+    stepRoverCamera(dt);
+    R.sky.position.copy(R.camera.position); R.stars.position.copy(R.camera.position);
+    if (audio.motor) {
+      const s = Math.abs(R.speed);
+      audio.motor.g.gain.setTargetAtTime(Math.min(0.12, s * 0.02), audio.ctx.currentTime, 0.1);
+      audio.motor.o.frequency.setTargetAtTime(90 + s * 30, audio.ctx.currentTime, 0.1);
+      audio.motor.o2.frequency.setTargetAtTime(180 + s * 64, audio.ctx.currentTime, 0.1);
+    }
+    // labels for buildings within range
+    BUILDINGS.forEach(b => {
+      const d = b.world.distanceTo(R.pos);
+      const top = tmpA.copy(b.world); top.y += 14;
+      placeLabel(b.label, top, state.labels && state.base && b.grow > 0.9 && d < 280 && d > 6, R.camera);
+    });
+    // the info card steps aside while you drive, and comes back when you stop
+    if (Math.abs(R.speed) > 0.6) { R.stillSince = now; $('context').classList.add('quiet'); }
+    else if (now - (R.stillSince || 0) > 2500) $('context').classList.remove('quiet');
+    // arriving at the base
+    const dBase = Math.hypot(R.pos.x - BASE_C.x, R.pos.z - BASE_C.z);
+    if (dBase < BASE_R + 10 && !R.welcomed) { R.welcomed = true; showContext({ tag: 'New Jezero · a vision of the future', title: 'Welcome to New Jezero', text: 'Tap any building’s label to hear its story, or press Manifest to watch the town grow from the first landing to a city.', facts: [] }, [['Manifest the town', () => manifest()]]); }
+    if (dBase > BASE_R + 80 && R.welcomed) { R.welcomed = false; state.level = null; setLevel('rover'); }
+  }
+
+  // telemetry, 4 times a second
+  if (now - lastTele > 250) {
+    lastTele = now;
+    if (state.mode === 'orbit') {
+      $('t-sun').innerHTML = `${fmt(sim.rS / 1e6, 2)}<small>M km</small>`;
+      $('t-speed').innerHTML = `${(sim.speed).toFixed(2)}<small>km/s</small>`;
+      const se = seasonOf(m.Ls);
+      $('t-season').innerHTML = `${se.n}<small>N</small> · ${se.s}<small>S</small> · Ls ${m.Ls.toFixed(0)}°`;
+      $('t-mtc').textContent = hhmm(m.mtc);
+      $('t-msd').textContent = fmt(m.msd, 2);
+      $('t-earth').innerHTML = `${fmt(sim.rE / 1e6, 1)}<small>M km</small>`;
+      const lt = sim.rE / C_KMS;
+      $('t-light').innerHTML = `${Math.floor(lt / 60)}<small>m</small> ${String(Math.round(lt % 60)).padStart(2, '0')}<small>s</small>`;
+      const sol = Math.floor((state.simMs - PERSEVERANCE_LANDING) / 88775244);
+      $('t-sol').innerHTML = sol >= 0 ? `Sol ${fmt(sol)}` : '—';
+      if (Math.abs(state.simMs - windowCache.at) > 5 * 86400000) windowCache = { at: state.simMs, t: nextLaunchWindow(state.simMs) };
+      $('t-window').textContent = windowCache.t ? monthFmt.format(windowCache.t) : '—';
+    } else {
+      $('r-speed').innerHTML = `${(Math.abs(R.speed) * 3.6).toFixed(1)}<small>km/h</small>`;
+      const hd = norm360(90 - R.yaw / DEG);
+      $('r-head').innerHTML = `${hd.toFixed(0)}° <small>${compass(hd)}</small>`;
+      $('r-batt').innerHTML = `<span class="tele-bar"><i style="width:${(R.batt * 100).toFixed(0)}%"></i></span>${(R.batt * 100).toFixed(0)}%`;
+      $('r-odo').innerHTML = R.odo < 1000 ? `${fmt(R.odo)}<small>m</small>` : `${(R.odo / 1000).toFixed(2)}<small>km</small>`;
+      $('r-sun').textContent = R.sunEl > 0 ? `${R.sunEl.toFixed(0)}° up` : R.sunEl > -6 ? 'Twilight' : 'Night';
+      const db = Math.max(0, Math.hypot(R.pos.x - BASE_C.x, R.pos.z - BASE_C.z) - BASE_R);
+      $('r-base').innerHTML = db < 1 ? 'Arrived' : `${fmt(db)}<small>m</small>`;
+      $('ltst-brand').textContent = hhmm(R.lst);
+    }
+    $('t-date').textContent = (state.rate === 1 && Math.abs(state.simMs - Date.now()) < 5000 ? 'Live · ' : 'Sim · ') + dateFmt.format(state.simMs);
+  }
+  composer.render();
+}
+
+/* ================================================================== */
+/*  Start                                                              */
+/* ================================================================== */
+if (!matchMedia('(pointer: coarse)').matches) document.body.classList.add('no-touch');
+initLadder();
+updateSim();
+const startDir = () => sim.sunScene.clone().multiplyScalar(0.75).add(placeDir(10, 60)).normalize();
+camera.position.copy(startDir().multiplyScalar(10));
+let last = performance.now();
+function loop(now) { requestAnimationFrame(loop); const dt = Math.min((now - last) / 1000, 0.1); last = now; frame(now, dt); }
+manager.onLoad = () => {
+  $('boot-fill').style.transform = 'scaleX(1)';
+  $('boot-status').textContent = 'Ready';
+  requestAnimationFrame(loop);
+  setTimeout(() => { $('boot').classList.add('gone'); flyTo(startDir().multiplyScalar(innerWidth < innerHeight ? 4.6 : 3.4), 3.2); }, 400);
+  setTimeout(() => $('hint').classList.add('gone'), 9000);
+};
+window.__ares = { state, sim, camera, R, enterRover, exitRover, flyTo, flyToLevel, manifest, setBaseStage, mars24, nextLaunchWindow, ltstAt, keys, stick, setCam: (x, y, z) => { flight = null; camera.position.set(x, y, z); } };
+</script>
+</body>
+</html>
