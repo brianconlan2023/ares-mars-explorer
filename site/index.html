@@ -551,17 +551,23 @@ const marsMat = new THREE.ShaderMaterial({
         albedo *= mix(1.0, 0.82 + 0.36 * (fbm(q) * 0.6 + fbm(q * 3.7) * 0.4), close * (1.0 - uMolaOn));
         tn.xy += (vec2(fbm(q + 3.1), fbm(q + 9.7)) - 0.5) * 0.45 * close * uRelief;
       }
-      vec3 nP = normalize(east * tn.x + north * tn.y + n * max(tn.z, 0.2));
       float ndlG = dot(n, uSun);
+      // relief eases off toward the terminator, so grazing light can't emboss the craters into black-grey
+      float reliefK = 0.3 + 0.7 * smoothstep(0.0, 0.4, ndlG);
+      vec3 nP = normalize(n + (east * tn.x + north * tn.y) * reliefK / max(tn.z, 0.2));
       float mu0 = max(dot(nP, uSun), 0.0), mu = max(dot(n, V), 0.0);
-      // dusty regolith: a little Minnaert-style limb darkening
-      float lit = pow(mu0, 0.9) * pow(max(mu, 0.05), 0.12) * smoothstep(-0.06, 0.06, ndlG);
+      // dusty regolith: a little Minnaert-style limb darkening, and a soft dusk instead of a hard cut
+      float lit = pow(mu0, 0.9) * pow(max(mu, 0.05), 0.12) * smoothstep(-0.12, 0.10, ndlG);
       vec3 col = albedo * lit * uSunI;
       // a thin dust haze lifts the whole disc toward butterscotch
       vec3 dust = vec3(0.86, 0.55, 0.36);
       col = mix(col, dust * uSunI * 0.55 * clamp(ndlG + 0.15, 0.0, 1.0), uHaze * 0.22 + pow(1.0 - mu, 3.0) * 0.55 * (0.4 + uHaze));
-      // twilight: a faint blue-ish fringe right at the terminator, from dust scattering forward
-      col += vec3(0.25, 0.35, 0.55) * exp(-pow((ndlG + 0.03) / 0.05, 2.0)) * 0.05 * uSunI;
+      // twilight: the dusty sky keeps glowing a while after sunset, warm near the Sun's side, cooling to blue-grey
+      float tw = smoothstep(-0.22, 0.0, ndlG) * (1.0 - smoothstep(0.0, 0.2, ndlG));
+      col += albedo * mix(vec3(0.42, 0.46, 0.62), vec3(0.95, 0.62, 0.42), smoothstep(-0.12, 0.05, ndlG)) * tw * 0.22 * uSunI;
+      // night: starlight and Phobos-light, just enough to keep the rust-brown ground faintly readable
+      float night = 1.0 - smoothstep(-0.25, 0.05, ndlG);
+      col += albedo * vec3(0.30, 0.24, 0.22) * (0.08 + 0.03 * pow(mu, 0.5)) * night;
       gl_FragColor = vec4(col, 1.0);
       #include <tonemapping_fragment>
       #include <colorspace_fragment>
